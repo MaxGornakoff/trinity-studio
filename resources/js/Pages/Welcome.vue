@@ -1,5 +1,11 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import { ref, onMounted, nextTick } from 'vue';
+
+const slideContentRef = ref(null);
+const scrollImageRef = ref(null);
+const scrollOffset = ref(50);
+const isSliderHovered = ref(false);
 
 const services = [
     {
@@ -94,55 +100,123 @@ defineProps({
         default: () => [],
     },
 });
+
+const calculateScrollOffset = () => {
+    nextTick(() => {
+        if (slideContentRef.value && scrollImageRef.value) {
+            const containerHeight = slideContentRef.value.offsetHeight;
+            const imageHeight = scrollImageRef.value.offsetHeight;
+            
+            if (imageHeight > containerHeight) {
+                const offset = ((imageHeight - containerHeight) / imageHeight) * 100;
+                scrollOffset.value = offset;
+            }
+        }
+    });
+};
+
+onMounted(() => {
+    calculateScrollOffset();
+    
+    // Пересчитываем при изменении размера окна
+    window.addEventListener('resize', calculateScrollOffset);
+});
+
+const handleSliderMouseEnter = () => {
+    isSliderHovered.value = true;
+};
+
+const handleSliderMouseLeave = () => {
+    isSliderHovered.value = false;
+    
+    // Плавно возвращаем изображение в исходное положение
+    if (scrollImageRef.value) {
+        const element = scrollImageRef.value;
+        
+        // Получаем текущее значение translateY
+        const matrix = window.getComputedStyle(element).transform;
+        const matrixValues = matrix.match(/matrix.*\((.+)\)/)[1].split(', ');
+        const currentY = parseFloat(matrixValues[5]) || 0;
+        
+        // Анимируем возврат
+        const startTime = Date.now();
+        const duration = 1000; // 1 секунда
+        
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Используем ease-out кривую
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            
+            const newY = currentY + (0 - currentY) * easeProgress;
+            element.style.transform = `translateY(${newY}px)`;
+            
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                element.style.transform = 'translateY(0)';
+            }
+        };
+        
+        requestAnimationFrame(animate);
+    }
+};
 </script>
 
 <template>
     <Head title="Trinity Studio" />
 
     <div class="min-h-screen bg-gray-100 font-sans text-gray-900 tracking-tight">
-        <header class="pt-4">
-            <div class="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                <div class="rounded-sm border border-gray-400 bg-white px-2 py-0.5 text-[10px] font-semibold tracking-[0.18em]">
-                    TRINITY WEB
-                </div>
+        <header class="pt-8">
+            <div class="mx-auto flex max-w-6xl items-center justify-between px-3 sm:px-5 lg:px-5">
+                <Link :href="'/'" class="">
+                    <img src="/images/logotype1.svg" alt="Logo" />
+                </Link>
 
                 <nav class="hidden items-center gap-5 text-[11px] font-medium text-gray-600 sm:flex">
-                    <a href="#projects" class="hover:text-gray-900">Проекты</a>
-                    <a href="#services" class="hover:text-gray-900">Услуги</a>
-                    <a href="#about" class="hover:text-gray-900">О нас</a>
+                    <a href="#projects" class="hover:text-gray-900 text-[#333333] text-[16px]">Проекты</a>
+                    <a href="#services" class="hover:text-gray-900 text-[#333333] text-[16px]">Услуги</a>
+                    <a href="#about" class="hover:text-gray-900 text-[#333333] text-[16px]">О нас</a>
                 </nav>
 
-                <div class="flex items-center gap-3">
-                    <a href="#contacts" class="rounded-full bg-gray-800 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white hover:bg-gray-700">
-                        Контакт
+                
+                    <a href="#contacts" class="rounded-full bg-[#333333] flex items-center font-normal pl-[25px] pr-[15px] py-[6px] text-[16px] text-white hover:bg-gray-700 gap-3">
+                        <span class="block">Контакт</span>
+                        <span class="icon w-[9px] h-[10px] block  min-w-[14px]">
+                            <svg class="h-full w-full block"><use xlink:href="/images/sprite.svg#arrow"></use></svg>
+                        </span>
                     </a>
-                    <template v-if="canLogin && $page.props.auth.user">
-                        <Link :href="route('dashboard')" class="text-[11px] font-medium text-gray-600 hover:text-gray-900">Админка</Link>
-                    </template>
-                </div>
+                    
+            
             </div>
         </header>
 
         <main>
-            <section class="mx-auto max-w-6xl px-4 pb-28 pt-16 sm:px-6 lg:px-8">
+            <section class="mx-auto max-w-6xl px-4 pb-28 pt-[128px] sm:px-6 lg:px-5">
                 <div class="text-center">
-                    <h1 class="text-4xl font-bold leading-[0.95] tracking-[-0.03em] sm:text-6xl md:text-7xl">Создаём сайты,<br />которые работают</h1>
-                    <p class="mx-auto mt-5 max-w-2xl text-[12px] leading-relaxed text-gray-500 sm:text-[13px]" id="about">
+                    <h1 class="text-4xl font-bold leading-[1] tracking-[-0.03em] sm:text-6xl md:text-[92px]">Создаём сайты,<br />которые работают</h1>
+                    <p class="mx-auto mt-8  text-[12px] leading-relaxed text-[#333333] sm:text-[18px]" id="about">
                         Помогаем клиентам выйти в интернет: сайт, дизайн, реклама — легко и эффективно.
                     </p>
                 </div>
 
-                <div class="relative mx-auto mt-12 max-w-4xl">
-                    <div class="rounded-2xl border border-gray-300 bg-gradient-to-b from-gray-200 to-gray-300 p-5 shadow-sm">
-                        <div class="aspect-[16/9] overflow-hidden rounded-lg bg-gradient-to-br from-sky-700 via-blue-700 to-slate-800">
-                            <div class="h-full w-full bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.2),_transparent_40%)]" />
+                
+                    <div class="slider group" :class="{ 'is-hovered': isSliderHovered }" :style="{ '--scroll-offset': scrollOffset + '%' }" @mouseenter="handleSliderMouseEnter" @mouseleave="handleSliderMouseLeave">
+                        <div class="desktop relative">
+                            <div ref="slideContentRef" class="slide-content max-w-[864px] h-[542px] overflow-hidden absolute top-[37px] left-[124px]">
+                                <Link href="/"><img ref="scrollImageRef" src="/images/1class.jpg" alt="" class="scroll-image" @load="calculateScrollOffset"></Link>
+                            </div>
+                            <div class="mockup">
+                                <img src="/images/nout_mockup.svg" alt="">
+                            </div>
+                            <div class=" slide-glint max-w-[864px] rounded-tr-[24px] w-[65%] h-[611px] overflow-hidden  absolute top-0 left-auto right-[102px] bg-[rgba(255,255,255,0.2)] z-999" style="clip-path: polygon(80% 0, 100% 0, 100% 100%, 0 100%)">
+                                
+                            </div>
                         </div>
+                        <div class="mobile"></div>
                     </div>
-                    <div class="mx-auto h-3 w-[88%] rounded-b-full bg-gray-300" />
-                    <div class="absolute -bottom-8 right-10 w-40 rounded-3xl border-4 border-gray-300 bg-gradient-to-b from-blue-700 to-slate-900 p-2 shadow-md sm:w-48">
-                        <div class="aspect-[9/17] rounded-2xl bg-gradient-to-b from-sky-700 via-blue-700 to-slate-900" />
-                    </div>
-                </div>
+                
             </section>
 
             <section class="mx-auto max-w-6xl px-4 pb-28 sm:px-6 lg:px-8" id="services">
@@ -251,3 +325,79 @@ defineProps({
         </main>
     </div>
 </template>
+
+<style scoped>
+.scroll-image {
+    will-change: transform;
+}
+
+.slider.group:not(.is-hovered) .scroll-image {
+    animation: none !important;
+}
+
+.slider.group.is-hovered .scroll-image {
+    animation: realisticScroll 11s infinite;
+}
+
+@keyframes realisticScroll {
+    0% {
+        transform: translateY(0);
+        animation-timing-function: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+    }
+    3% {
+        transform: translateY(calc(var(--scroll-offset) * -0.02));
+    }
+    10% {
+        transform: translateY(calc(var(--scroll-offset) * -0.08));
+    }
+    12% {
+        transform: translateY(calc(var(--scroll-offset) * -0.10));
+    }
+    15% {
+        transform: translateY(calc(var(--scroll-offset) * -0.11));
+    }
+    21% {
+        transform: translateY(calc(var(--scroll-offset) * -0.20));
+    }
+    28% {
+        transform: translateY(calc(var(--scroll-offset) * -0.32));
+    }
+    31% {
+        transform: translateY(calc(var(--scroll-offset) * -0.35));
+    }
+    34% {
+        transform: translateY(calc(var(--scroll-offset) * -0.37));
+    }
+    37% {
+        transform: translateY(calc(var(--scroll-offset) * -0.40));
+    }
+    41% {
+        transform: translateY(calc(var(--scroll-offset) * -0.45));
+    }
+    49% {
+        transform: translateY(calc(var(--scroll-offset) * -0.60));
+        animation-timing-function: linear;
+    }
+    54% {
+        transform: translateY(calc(var(--scroll-offset) * -0.72));
+    }
+    58% {
+        transform: translateY(calc(var(--scroll-offset) * -0.80));
+    }
+    60% {
+        transform: translateY(calc(var(--scroll-offset) * -0.85));
+    }
+    64% {
+        transform: translateY(calc(var(--scroll-offset) * -0.92));
+    }
+    90% {
+        transform: translateY(calc(var(--scroll-offset) * -1));
+        animation-timing-function: ease-in;
+    }
+    /* Быстрый возврат за 1 секунду с ускорением в начале и конце */
+    100% {
+        transform: translateY(0);
+        animation-timing-function: ease-out;
+    }
+}
+</style>
