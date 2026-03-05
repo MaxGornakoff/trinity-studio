@@ -17,6 +17,14 @@ const slideContentMobileRef = ref(null);
 const scrollImageMobileRef = ref(null);
 const scrollOffsetMobile = ref(50);
 const isMobileHovered = ref(false);
+const isTransitioning = ref(false);
+const transitionDirection = ref('next');
+const isPreparingSlide = ref(false);
+
+const desktopContainerRef = ref(null);
+const mobileContainerRef = ref(null);
+
+const TRANSITION_MS = 600;
 
 const services = [
     {
@@ -116,22 +124,59 @@ const props = defineProps({
     },
 });
 
-const applyCurrentSlide = (index) => {
+const getSlideData = (index) => {
     if (!props.sliderProjects.length) {
-        currentSlideIndex.value = 0;
-        currentSlideLink.value = '/';
-        currentDesktopImage.value = defaultDesktopImage;
-        currentMobileImage.value = defaultMobileImage;
-        return;
+        return {
+            index: 0,
+            project_url: '/',
+            desktop_mockup_image: defaultDesktopImage,
+            mobile_mockup_image: defaultMobileImage,
+        };
     }
 
     const normalizedIndex = (index + props.sliderProjects.length) % props.sliderProjects.length;
     const project = props.sliderProjects[normalizedIndex];
 
-    currentSlideIndex.value = normalizedIndex;
-    currentSlideLink.value = project.project_url || '/';
-    currentDesktopImage.value = project.desktop_mockup_image || defaultDesktopImage;
-    currentMobileImage.value = project.mobile_mockup_image || defaultMobileImage;
+    return {
+        index: normalizedIndex,
+        project_url: project.project_url || '/',
+        desktop_mockup_image: project.desktop_mockup_image || defaultDesktopImage,
+        mobile_mockup_image: project.mobile_mockup_image || defaultMobileImage,
+    };
+};
+
+const preloadImage = (src) => new Promise((resolve) => {
+    if (!src) {
+        resolve();
+        return;
+    }
+
+    let settled = false;
+    const done = () => {
+        if (settled) {
+            return;
+        }
+        settled = true;
+        resolve();
+    };
+
+    const img = new Image();
+    img.onload = done;
+    img.onerror = done;
+    img.src = src;
+
+    if (typeof img.decode === 'function') {
+        img.decode().then(done).catch(done);
+    }
+});
+
+const applyCurrentSlide = (index) => {
+    const nextSlide = getSlideData(index);
+
+    currentSlideIndex.value = nextSlide.index;
+    currentSlideLink.value = nextSlide.project_url;
+    currentDesktopImage.value = nextSlide.desktop_mockup_image;
+    currentMobileImage.value = nextSlide.mobile_mockup_image;
 
     nextTick(() => {
         calculateScrollOffset();
@@ -139,36 +184,73 @@ const applyCurrentSlide = (index) => {
     });
 };
 
-const goToNextSlide = () => {
-    if (props.sliderProjects.length < 2) {
+const runSlideTransition = async (targetIndex, direction) => {
+    if (props.sliderProjects.length < 2 || isTransitioning.value || isPreparingSlide.value) {
         return;
     }
 
+    isTransitioning.value = true;
+    transitionDirection.value = direction;
+
+    const nextSlide = getSlideData(targetIndex);
+    const preloadPromise = Promise.all([
+        preloadImage(nextSlide.desktop_mockup_image),
+        preloadImage(nextSlide.mobile_mockup_image),
+    ]);
+
+    // Сбрасываем анимацию скролла перед выездом
     if (scrollImageRef.value) {
         scrollImageRef.value.style.transform = 'translateY(0)';
     }
-
     if (scrollImageMobileRef.value) {
         scrollImageMobileRef.value.style.transform = 'translateY(0)';
     }
 
-    applyCurrentSlide(currentSlideIndex.value + 1);
+    const desktopOutClass = direction === 'next' ? 'transitioning-out-next' : 'transitioning-out-prev';
+    const desktopInClass = direction === 'next' ? 'transitioning-in-next' : 'transitioning-in-prev';
+
+    if (desktopContainerRef.value) {
+        desktopContainerRef.value.classList.add(desktopOutClass);
+    }
+    if (mobileContainerRef.value) {
+        mobileContainerRef.value.classList.add('transitioning-out');
+    }
+
+    setTimeout(async () => {
+        isPreparingSlide.value = true;
+        await preloadPromise;
+        isPreparingSlide.value = false;
+
+        applyCurrentSlide(targetIndex);
+
+        if (desktopContainerRef.value) {
+            desktopContainerRef.value.classList.remove(desktopOutClass);
+            desktopContainerRef.value.classList.add(desktopInClass);
+        }
+        if (mobileContainerRef.value) {
+            mobileContainerRef.value.classList.remove('transitioning-out');
+            mobileContainerRef.value.classList.add('transitioning-in');
+        }
+
+        setTimeout(() => {
+            if (desktopContainerRef.value) {
+                desktopContainerRef.value.classList.remove(desktopInClass);
+            }
+            if (mobileContainerRef.value) {
+                mobileContainerRef.value.classList.remove('transitioning-in');
+            }
+
+            isTransitioning.value = false;
+        }, TRANSITION_MS);
+    }, TRANSITION_MS);
+};
+
+const goToNextSlide = () => {
+    runSlideTransition(currentSlideIndex.value + 1, 'next');
 };
 
 const goToPrevSlide = () => {
-    if (props.sliderProjects.length < 2) {
-        return;
-    }
-
-    if (scrollImageRef.value) {
-        scrollImageRef.value.style.transform = 'translateY(0)';
-    }
-
-    if (scrollImageMobileRef.value) {
-        scrollImageMobileRef.value.style.transform = 'translateY(0)';
-    }
-
-    applyCurrentSlide(currentSlideIndex.value - 1);
+    runSlideTransition(currentSlideIndex.value - 1, 'prev');
 };
 
 const calculateScrollOffset = () => {
@@ -399,7 +481,7 @@ const handleMobileMouseLeave = () => {
                     </p>
                 </div>
                     <div class="relative slider group mt-[120px]" :class="{ 'is-hovered': isSliderHovered }" :style="{ '--scroll-offset': scrollOffset + '%' }">
-                        <div class="desktop relative" @mouseenter="handleSliderMouseEnter" @mouseleave="handleSliderMouseLeave">
+                        <div ref="desktopContainerRef" class="desktop relative" @mouseenter="handleSliderMouseEnter" @mouseleave="handleSliderMouseLeave">
                             <div ref="slideContentRef" class="slide-content max-w-[864px] h-[542px] overflow-hidden absolute top-[37px] left-[124px]">
                                 <Link :href="currentSlideLink" class="slide"><img ref="scrollImageRef" :src="currentDesktopImage" alt="" class="scroll-image" @load="calculateScrollOffset"></Link>
                             </div>
@@ -410,7 +492,7 @@ const handleMobileMouseLeave = () => {
                                 
                             </Link>
                         </div>
-                        <div class="mobile cursor-pointer absolute top-[133px] right-14 max-w-[308px] w-full h-[620px] flex items-center justify-center" :class="{ 'is-hovered': isMobileHovered }" :style="{ '--scroll-offset-mobile': scrollOffsetMobile + '%' }" @mouseenter="handleMobileMouseEnter" @mouseleave="handleMobileMouseLeave">
+                        <div ref="mobileContainerRef" class="mobile cursor-pointer absolute top-[133px] right-14 max-w-[308px] w-full h-[620px] flex items-center justify-center" :class="{ 'is-hovered': isMobileHovered }" :style="{ '--scroll-offset-mobile': scrollOffsetMobile + '%' }" @mouseenter="handleMobileMouseEnter" @mouseleave="handleMobileMouseLeave">
                             <div ref="slideContentMobileRef" class="slide-content--mobile overflow-hidden absolute top-[1px] w-[91%] h-full rounded-[50px]">
                                 <Link :href="currentSlideLink" class="slide-mobile"><img ref="scrollImageMobileRef" :src="currentMobileImage" alt="" class="scroll-image-mobile" @load="calculateScrollOffsetMobile"></Link>
                             </div>
@@ -575,6 +657,104 @@ const handleMobileMouseLeave = () => {
 .slider:hover .arrows {
     opacity: 1;
     pointer-events: auto;
+}
+
+/* Анимации переключения слайдов */
+
+/* Desktop mockup - выезд вправо (next) */
+.desktop.transitioning-out-next {
+    animation: slideOutRight 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+/* Desktop mockup - въезд слева (next) */
+.desktop.transitioning-in-next {
+    animation: slideInLeft 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+/* Desktop mockup - выезд влево (prev) */
+.desktop.transitioning-out-prev {
+    animation: slideOutLeft 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+/* Desktop mockup - въезд справа (prev) */
+.desktop.transitioning-in-prev {
+    animation: slideInRight 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+/* Mobile mockup - улетает в экран */
+.mobile.transitioning-out {
+    animation: flyIntoScreen 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+/* Mobile mockup - вылетает из экрана */
+.mobile.transitioning-in {
+    animation: flyOutOfScreen 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+@keyframes slideOutRight {
+    0% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+@keyframes slideInLeft {
+    0% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutLeft {
+    0% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+}
+
+@keyframes slideInRight {
+    0% {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes flyIntoScreen {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(0.3);
+        opacity: 0;
+    }
+}
+
+@keyframes flyOutOfScreen {
+    0% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 @keyframes realisticScroll {
