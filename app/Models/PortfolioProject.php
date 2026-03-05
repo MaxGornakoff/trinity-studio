@@ -15,6 +15,8 @@ class PortfolioProject extends Model
         'summary',
         'content',
         'thumbnail_url',
+        'desktop_mockup_image',
+        'mobile_mockup_image',
         'project_url',
         'order_column',
         'is_featured',

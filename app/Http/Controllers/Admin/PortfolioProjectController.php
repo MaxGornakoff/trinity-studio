@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePortfolioProjectRequest;
 use App\Http\Requests\UpdatePortfolioProjectRequest;
 use App\Models\PortfolioProject;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -42,6 +43,22 @@ class PortfolioProjectController extends Controller
 
         if (empty($data['slug'])) {
             $data['slug'] = Str::slug($data['title']);
+        }
+
+        // Обработка загрузки изображения для десктопного мокапа
+        if ($request->hasFile('desktop_mockup_image')) {
+            $file = $request->file('desktop_mockup_image');
+            $filename = $data['slug'] . '-desktop.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('mockups', $filename, 'public');
+            $data['desktop_mockup_image'] = '/storage/' . $path;
+        }
+
+        // Обработка загрузки изображения для мобильного мокапа
+        if ($request->hasFile('mobile_mockup_image')) {
+            $file = $request->file('mobile_mockup_image');
+            $filename = $data['slug'] . '-mobile.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('mockups', $filename, 'public');
+            $data['mobile_mockup_image'] = '/storage/' . $path;
         }
 
         $data['is_featured'] = (bool) ($data['is_featured'] ?? false);
@@ -83,6 +100,34 @@ class PortfolioProjectController extends Controller
             $data['slug'] = Str::slug($data['title']);
         }
 
+        // Обработка загрузки изображения для десктопного мокапа
+        if ($request->hasFile('desktop_mockup_image')) {
+            // Удаляем старое изображение
+            if ($portfolioProject->desktop_mockup_image) {
+                $oldPath = str_replace('/storage/', '', $portfolioProject->desktop_mockup_image);
+                Storage::disk('public')->delete($oldPath);
+            }
+            
+            $file = $request->file('desktop_mockup_image');
+            $filename = $data['slug'] . '-desktop.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('mockups', $filename, 'public');
+            $data['desktop_mockup_image'] = '/storage/' . $path;
+        }
+
+        // Обработка загрузки изображения для мобильного мокапа
+        if ($request->hasFile('mobile_mockup_image')) {
+            // Удаляем старое изображение
+            if ($portfolioProject->mobile_mockup_image) {
+                $oldPath = str_replace('/storage/', '', $portfolioProject->mobile_mockup_image);
+                Storage::disk('public')->delete($oldPath);
+            }
+            
+            $file = $request->file('mobile_mockup_image');
+            $filename = $data['slug'] . '-mobile.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('mockups', $filename, 'public');
+            $data['mobile_mockup_image'] = '/storage/' . $path;
+        }
+
         $data['is_featured'] = (bool) ($data['is_featured'] ?? false);
         $data['is_published'] = (bool) ($data['is_published'] ?? false);
 
@@ -98,6 +143,17 @@ class PortfolioProjectController extends Controller
      */
     public function destroy(PortfolioProject $portfolioProject)
     {
+        // Удаляем изображения мокапов
+        if ($portfolioProject->desktop_mockup_image) {
+            $path = str_replace('/storage/', '', $portfolioProject->desktop_mockup_image);
+            Storage::disk('public')->delete($path);
+        }
+        
+        if ($portfolioProject->mobile_mockup_image) {
+            $path = str_replace('/storage/', '', $portfolioProject->mobile_mockup_image);
+            Storage::disk('public')->delete($path);
+        }
+        
         $portfolioProject->delete();
 
         return redirect()

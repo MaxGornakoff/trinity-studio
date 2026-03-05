@@ -6,6 +6,12 @@ const slideContentRef = ref(null);
 const scrollImageRef = ref(null);
 const scrollOffset = ref(50);
 const isSliderHovered = ref(false);
+const currentSlideLink = ref('/');
+
+const slideContentMobileRef = ref(null);
+const scrollImageMobileRef = ref(null);
+const scrollOffsetMobile = ref(50);
+const isMobileHovered = ref(false);
 
 const services = [
     {
@@ -115,15 +121,67 @@ const calculateScrollOffset = () => {
     });
 };
 
+const calculateScrollOffsetMobile = () => {
+    nextTick(() => {
+        if (slideContentMobileRef.value && scrollImageMobileRef.value) {
+            const containerHeight = slideContentMobileRef.value.offsetHeight;
+            const imageHeight = scrollImageMobileRef.value.offsetHeight;
+            
+            if (imageHeight > containerHeight) {
+                const offset = ((imageHeight - containerHeight) / imageHeight) * 100;
+                scrollOffsetMobile.value = offset;
+            }
+        }
+    });
+};
+
 onMounted(() => {
     calculateScrollOffset();
+    calculateScrollOffsetMobile();
     
     // Пересчитываем при изменении размера окна
-    window.addEventListener('resize', calculateScrollOffset);
+    window.addEventListener('resize', () => {
+        calculateScrollOffset();
+        calculateScrollOffsetMobile();
+    });
 });
 
 const handleSliderMouseEnter = () => {
     isSliderHovered.value = true;
+    
+    // Останавливаем анимацию мобильного элемента
+    if (isMobileHovered.value) {
+        isMobileHovered.value = false;
+        
+        if (scrollImageMobileRef.value) {
+            const element = scrollImageMobileRef.value;
+            
+            const matrix = window.getComputedStyle(element).transform;
+            const matrixValues = matrix.match(/matrix.*\((.+)\)/)[1].split(', ');
+            const currentY = parseFloat(matrixValues[5]) || 0;
+            
+            const startTime = Date.now();
+            const duration = 1000;
+            
+            const animate = () => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                const easeProgress = 1 - Math.pow(1 - progress, 3);
+                
+                const newY = currentY + (0 - currentY) * easeProgress;
+                element.style.transform = `translateY(${newY}px)`;
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    element.style.transform = 'translateY(0)';
+                }
+            };
+            
+            requestAnimationFrame(animate);
+        }
+    }
 };
 
 const handleSliderMouseLeave = () => {
@@ -132,6 +190,81 @@ const handleSliderMouseLeave = () => {
     // Плавно возвращаем изображение в исходное положение
     if (scrollImageRef.value) {
         const element = scrollImageRef.value;
+        
+        // Получаем текущее значение translateY
+        const matrix = window.getComputedStyle(element).transform;
+        const matrixValues = matrix.match(/matrix.*\((.+)\)/)[1].split(', ');
+        const currentY = parseFloat(matrixValues[5]) || 0;
+        
+        // Анимируем возврат
+        const startTime = Date.now();
+        const duration = 1000; // 1 секунда
+        
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Используем ease-out кривую
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            
+            const newY = currentY + (0 - currentY) * easeProgress;
+            element.style.transform = `translateY(${newY}px)`;
+            
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                element.style.transform = 'translateY(0)';
+            }
+        };
+        
+        requestAnimationFrame(animate);
+    }
+};
+
+const handleMobileMouseEnter = () => {
+    isMobileHovered.value = true;
+    
+    // Останавливаем анимацию десктопного элемента
+    if (isSliderHovered.value) {
+        isSliderHovered.value = false;
+        
+        if (scrollImageRef.value) {
+            const element = scrollImageRef.value;
+            
+            const matrix = window.getComputedStyle(element).transform;
+            const matrixValues = matrix.match(/matrix.*\((.+)\)/)[1].split(', ');
+            const currentY = parseFloat(matrixValues[5]) || 0;
+            
+            const startTime = Date.now();
+            const duration = 1000;
+            
+            const animate = () => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                const easeProgress = 1 - Math.pow(1 - progress, 3);
+                
+                const newY = currentY + (0 - currentY) * easeProgress;
+                element.style.transform = `translateY(${newY}px)`;
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    element.style.transform = 'translateY(0)';
+                }
+            };
+            
+            requestAnimationFrame(animate);
+        }
+    }
+};
+
+const handleMobileMouseLeave = () => {
+    isMobileHovered.value = false;
+    
+    // Плавно возвращаем изображение в исходное положение
+    if (scrollImageMobileRef.value) {
+        const element = scrollImageMobileRef.value;
         
         // Получаем текущее значение translateY
         const matrix = window.getComputedStyle(element).transform;
@@ -200,21 +333,38 @@ const handleSliderMouseLeave = () => {
                         Помогаем клиентам выйти в интернет: сайт, дизайн, реклама — легко и эффективно.
                     </p>
                 </div>
-
-                
-                    <div class="slider group" :class="{ 'is-hovered': isSliderHovered }" :style="{ '--scroll-offset': scrollOffset + '%' }" @mouseenter="handleSliderMouseEnter" @mouseleave="handleSliderMouseLeave">
-                        <div class="desktop relative">
+                    <div class="relative slider group mt-[120px]" :class="{ 'is-hovered': isSliderHovered }" :style="{ '--scroll-offset': scrollOffset + '%' }">
+                        <div class="desktop relative" @mouseenter="handleSliderMouseEnter" @mouseleave="handleSliderMouseLeave">
                             <div ref="slideContentRef" class="slide-content max-w-[864px] h-[542px] overflow-hidden absolute top-[37px] left-[124px]">
-                                <Link href="/"><img ref="scrollImageRef" src="/images/1class.jpg" alt="" class="scroll-image" @load="calculateScrollOffset"></Link>
+                                <Link :href="currentSlideLink" class="slide"><img ref="scrollImageRef" src="/images/1class.jpg" alt="" class="scroll-image" @load="calculateScrollOffset"></Link>
                             </div>
                             <div class="mockup">
                                 <img src="/images/nout_mockup.svg" alt="">
                             </div>
-                            <div class=" slide-glint max-w-[864px] rounded-tr-[24px] w-[65%] h-[611px] overflow-hidden  absolute top-0 left-auto right-[102px] bg-[rgba(255,255,255,0.2)] z-999" style="clip-path: polygon(80% 0, 100% 0, 100% 100%, 0 100%)">
+                            <Link :href="currentSlideLink" class="pointer slide-glint max-w-[864px] rounded-tr-[24px] w-[65%] h-[611px] overflow-hidden  absolute top-0 left-auto right-[102px] bg-[rgba(255,255,255,0.2)] z-999" style="clip-path: polygon(80% 0, 100% 0, 100% 100%, 0 100%)">
                                 
+                            </Link>
+                        </div>
+                        <div class="mobile cursor-pointer absolute top-[133px] right-14 max-w-[308px] w-full h-[620px] flex items-center justify-center" :class="{ 'is-hovered': isMobileHovered }" :style="{ '--scroll-offset-mobile': scrollOffsetMobile + '%' }" @mouseenter="handleMobileMouseEnter" @mouseleave="handleMobileMouseLeave">
+                            <div ref="slideContentMobileRef" class="slide-content--mobile overflow-hidden absolute top-[1px] w-[91%] h-full rounded-[50px]">
+                                <Link :href="currentSlideLink" class="slide-mobile"><img ref="scrollImageMobileRef" src="/images/1class-m.jpg" alt="" class="scroll-image-mobile" @load="calculateScrollOffsetMobile"></Link>
+                            </div>
+                            <div class="mockup-mobile absolute">
+                                <img src="/images/smartphone.svg" alt="">
                             </div>
                         </div>
-                        <div class="mobile"></div>
+                        <div class="arrows absolute z-50 top-1/2 left-0 w-full flex items-center justify-between h-0">
+                            <div class="arrow-prev h-8 w-8 min-w-8 rounded-full bg-[rgba(0,0,0,0.5)] hover:bg-[#333333] flex items-center justify-center cursor-pointer">
+                                <span class="icon w-[9px] h-[10px] block  min-w-[14px] rotate-180">
+                                    <svg class="h-full w-full block fill-[#ffffff]"><use xlink:href="/images/sprite.svg#slide-arrow"></use></svg>
+                                </span>
+                            </div>
+                            <div class="arrow-next h-8 w-8 min-w-8 rounded-full bg-[rgba(0,0,0,0.5)] hover:bg-[#333333] flex items-center justify-center cursor-pointer">
+                                <span class="icon w-[9px] h-[10px] block  min-w-[14px]">
+                                    <svg class="h-full w-full block fill-[#ffffff]"><use xlink:href="/images/sprite.svg#slide-arrow"></use></svg>
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 
             </section>
@@ -339,6 +489,29 @@ const handleSliderMouseLeave = () => {
     animation: realisticScroll 11s infinite;
 }
 
+.scroll-image-mobile {
+    will-change: transform;
+}
+
+.mobile:not(.is-hovered) .scroll-image-mobile {
+    animation: none !important;
+}
+
+.mobile.is-hovered .scroll-image-mobile {
+    animation: realisticScrollMobile 11s infinite;
+}
+
+.arrows {
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    pointer-events: none;
+}
+
+.slider:hover .arrows {
+    opacity: 1;
+    pointer-events: auto;
+}
+
 @keyframes realisticScroll {
     0% {
         transform: translateY(0);
@@ -392,6 +565,68 @@ const handleSliderMouseLeave = () => {
     }
     90% {
         transform: translateY(calc(var(--scroll-offset) * -1));
+        animation-timing-function: ease-in;
+    }
+    /* Быстрый возврат за 1 секунду с ускорением в начале и конце */
+    100% {
+        transform: translateY(0);
+        animation-timing-function: ease-out;
+    }
+}
+
+@keyframes realisticScrollMobile {
+    0% {
+        transform: translateY(0);
+        animation-timing-function: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+    }
+    3% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.02));
+    }
+    10% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.08));
+    }
+    12% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.10));
+    }
+    15% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.11));
+    }
+    21% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.20));
+    }
+    28% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.32));
+    }
+    31% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.35));
+    }
+    34% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.37));
+    }
+    37% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.40));
+    }
+    41% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.45));
+    }
+    49% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.60));
+        animation-timing-function: linear;
+    }
+    54% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.72));
+    }
+    58% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.80));
+    }
+    60% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.85));
+    }
+    64% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -0.92));
+    }
+    90% {
+        transform: translateY(calc(var(--scroll-offset-mobile) * -1));
         animation-timing-function: ease-in;
     }
     /* Быстрый возврат за 1 секунду с ускорением в начале и конце */

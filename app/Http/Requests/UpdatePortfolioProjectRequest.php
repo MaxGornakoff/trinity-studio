@@ -34,11 +34,14 @@ class UpdatePortfolioProjectRequest extends FormRequest
             'summary' => ['nullable', 'string', 'max:1000'],
             'content' => ['nullable', 'string'],
             'thumbnail_url' => ['nullable', 'url', 'max:2048'],
+            'desktop_mockup_image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:10240'],
+            'mobile_mockup_image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:10240'],
             'project_url' => ['nullable', 'url', 'max:2048'],
             'order_column' => ['nullable', 'integer', 'min:0'],
             'is_featured' => ['sometimes', 'boolean'],
             'is_published' => ['sometimes', 'boolean'],
-            'published_at' => ['nullable', 'date'],
+                'show_in_slider' => ['sometimes', 'boolean'],
+                'published_at' => ['nullable', 'date'],
         ];
     }
 }

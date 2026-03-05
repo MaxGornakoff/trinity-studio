@@ -25,13 +25,21 @@ Route::get('/', function () {
             ->orderBy('order_column')
             ->limit(6)
             ->get();
+        
+        $sliderProjects = PortfolioProject::query()
+            ->where('is_published', true)
+            ->where('show_in_slider', true)
+            ->orderBy('order_column')
+            ->get();
     } catch (\Throwable $exception) {
         $featuredProjects = [];
+        $sliderProjects = [];
     }
 
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'featuredProjects' => $featuredProjects,
+        'sliderProjects' => $sliderProjects,
     ]);
 })->name('home');
 

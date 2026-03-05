@@ -40,6 +40,7 @@ const destroyProject = (project) => {
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Мокапы</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Проект</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Slug</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Статус</th>
@@ -48,6 +49,13 @@ const destroyProject = (project) => {
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr v-for="project in projects" :key="project.id">
+                                <td class="px-6 py-4">
+                                    <div class="flex gap-2">
+                                        <img v-if="project.desktop_mockup_image" :src="project.desktop_mockup_image" alt="Desktop" class="h-12 w-12 rounded object-cover border border-gray-200" />
+                                        <img v-if="project.mobile_mockup_image" :src="project.mobile_mockup_image" alt="Mobile" class="h-12 w-12 rounded object-cover border border-gray-200" />
+                                        <span v-if="!project.desktop_mockup_image && !project.mobile_mockup_image" class="text-xs text-gray-400">Нет изображений</span>
+                                    </div>
+                                </td>
                                 <td class="px-6 py-4 text-sm text-gray-900">{{ project.title }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-600">{{ project.slug }}</td>
                                 <td class="px-6 py-4 text-sm">
@@ -71,7 +79,7 @@ const destroyProject = (project) => {
                                 </td>
                             </tr>
                             <tr v-if="projects.length === 0">
-                                <td colspan="4" class="px-6 py-10 text-center text-sm text-gray-500">
+                                <td colspan="5" class="px-6 py-10 text-center text-sm text-gray-500">
                                     Пока нет проектов. Добавьте первый проект портфолио.
                                 </td>
                             </tr>
