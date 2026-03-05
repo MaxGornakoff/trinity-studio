@@ -42,7 +42,9 @@ class PortfolioProjectController extends Controller
         $data = $request->validated();
 
         if (empty($data['slug'])) {
-            $data['slug'] = Str::slug($data['title']);
+            // Транслитерация кириллицы в латиницу перед созданием slug
+            $transliterated = Str::transliterate($data['title']);
+            $data['slug'] = Str::slug($transliterated);
         }
 
         // Обработка загрузки изображения для десктопного мокапа
@@ -63,6 +65,7 @@ class PortfolioProjectController extends Controller
 
         $data['is_featured'] = (bool) ($data['is_featured'] ?? false);
         $data['is_published'] = (bool) ($data['is_published'] ?? false);
+        $data['show_in_slider'] = (bool) ($data['show_in_slider'] ?? false);
 
         PortfolioProject::create($data);
 
@@ -97,7 +100,9 @@ class PortfolioProjectController extends Controller
         $data = $request->validated();
 
         if (empty($data['slug'])) {
-            $data['slug'] = Str::slug($data['title']);
+            // Транслитерация кириллицы в латиницу перед созданием slug
+            $transliterated = Str::transliterate($data['title']);
+            $data['slug'] = Str::slug($transliterated);
         }
 
         // Обработка загрузки изображения для десктопного мокапа
@@ -130,6 +135,7 @@ class PortfolioProjectController extends Controller
 
         $data['is_featured'] = (bool) ($data['is_featured'] ?? false);
         $data['is_published'] = (bool) ($data['is_published'] ?? false);
+        $data['show_in_slider'] = (bool) ($data['show_in_slider'] ?? false);
 
         $portfolioProject->update($data);
 

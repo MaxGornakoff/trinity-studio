@@ -21,12 +21,15 @@ class PortfolioProject extends Model
         'order_column',
         'is_featured',
         'is_published',
+        'show_in_slider',
+        'region',
         'published_at',
     ];
 
     protected $casts = [
         'is_featured' => 'boolean',
         'is_published' => 'boolean',
+        'show_in_slider' => 'boolean',
         'published_at' => 'datetime',
     ];
 }

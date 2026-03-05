@@ -41,6 +41,7 @@ class UpdatePortfolioProjectRequest extends FormRequest
             'is_featured' => ['sometimes', 'boolean'],
             'is_published' => ['sometimes', 'boolean'],
                 'show_in_slider' => ['sometimes', 'boolean'],
+                'region' => ['required', 'in:russia,world'],
                 'published_at' => ['nullable', 'date'],
         ];
     }

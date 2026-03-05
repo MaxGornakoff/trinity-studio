@@ -7,6 +7,11 @@ const scrollImageRef = ref(null);
 const scrollOffset = ref(50);
 const isSliderHovered = ref(false);
 const currentSlideLink = ref('/');
+const currentSlideIndex = ref(0);
+const defaultDesktopImage = '/images/1class.jpg';
+const defaultMobileImage = '/images/1class-m.jpg';
+const currentDesktopImage = ref(defaultDesktopImage);
+const currentMobileImage = ref(defaultMobileImage);
 
 const slideContentMobileRef = ref(null);
 const scrollImageMobileRef = ref(null);
@@ -97,7 +102,7 @@ const mapDots = mapRows.flatMap((row, rowIndex) =>
     }))
 );
 
-defineProps({
+const props = defineProps({
     canLogin: {
         type: Boolean,
     },
@@ -105,7 +110,66 @@ defineProps({
         type: Array,
         default: () => [],
     },
+    sliderProjects: {
+        type: Array,
+        default: () => [],
+    },
 });
+
+const applyCurrentSlide = (index) => {
+    if (!props.sliderProjects.length) {
+        currentSlideIndex.value = 0;
+        currentSlideLink.value = '/';
+        currentDesktopImage.value = defaultDesktopImage;
+        currentMobileImage.value = defaultMobileImage;
+        return;
+    }
+
+    const normalizedIndex = (index + props.sliderProjects.length) % props.sliderProjects.length;
+    const project = props.sliderProjects[normalizedIndex];
+
+    currentSlideIndex.value = normalizedIndex;
+    currentSlideLink.value = project.project_url || '/';
+    currentDesktopImage.value = project.desktop_mockup_image || defaultDesktopImage;
+    currentMobileImage.value = project.mobile_mockup_image || defaultMobileImage;
+
+    nextTick(() => {
+        calculateScrollOffset();
+        calculateScrollOffsetMobile();
+    });
+};
+
+const goToNextSlide = () => {
+    if (props.sliderProjects.length < 2) {
+        return;
+    }
+
+    if (scrollImageRef.value) {
+        scrollImageRef.value.style.transform = 'translateY(0)';
+    }
+
+    if (scrollImageMobileRef.value) {
+        scrollImageMobileRef.value.style.transform = 'translateY(0)';
+    }
+
+    applyCurrentSlide(currentSlideIndex.value + 1);
+};
+
+const goToPrevSlide = () => {
+    if (props.sliderProjects.length < 2) {
+        return;
+    }
+
+    if (scrollImageRef.value) {
+        scrollImageRef.value.style.transform = 'translateY(0)';
+    }
+
+    if (scrollImageMobileRef.value) {
+        scrollImageMobileRef.value.style.transform = 'translateY(0)';
+    }
+
+    applyCurrentSlide(currentSlideIndex.value - 1);
+};
 
 const calculateScrollOffset = () => {
     nextTick(() => {
@@ -136,6 +200,7 @@ const calculateScrollOffsetMobile = () => {
 };
 
 onMounted(() => {
+    applyCurrentSlide(0);
     calculateScrollOffset();
     calculateScrollOffsetMobile();
     
@@ -336,7 +401,7 @@ const handleMobileMouseLeave = () => {
                     <div class="relative slider group mt-[120px]" :class="{ 'is-hovered': isSliderHovered }" :style="{ '--scroll-offset': scrollOffset + '%' }">
                         <div class="desktop relative" @mouseenter="handleSliderMouseEnter" @mouseleave="handleSliderMouseLeave">
                             <div ref="slideContentRef" class="slide-content max-w-[864px] h-[542px] overflow-hidden absolute top-[37px] left-[124px]">
-                                <Link :href="currentSlideLink" class="slide"><img ref="scrollImageRef" src="/images/1class.jpg" alt="" class="scroll-image" @load="calculateScrollOffset"></Link>
+                                <Link :href="currentSlideLink" class="slide"><img ref="scrollImageRef" :src="currentDesktopImage" alt="" class="scroll-image" @load="calculateScrollOffset"></Link>
                             </div>
                             <div class="mockup">
                                 <img src="/images/nout_mockup.svg" alt="">
@@ -347,19 +412,19 @@ const handleMobileMouseLeave = () => {
                         </div>
                         <div class="mobile cursor-pointer absolute top-[133px] right-14 max-w-[308px] w-full h-[620px] flex items-center justify-center" :class="{ 'is-hovered': isMobileHovered }" :style="{ '--scroll-offset-mobile': scrollOffsetMobile + '%' }" @mouseenter="handleMobileMouseEnter" @mouseleave="handleMobileMouseLeave">
                             <div ref="slideContentMobileRef" class="slide-content--mobile overflow-hidden absolute top-[1px] w-[91%] h-full rounded-[50px]">
-                                <Link :href="currentSlideLink" class="slide-mobile"><img ref="scrollImageMobileRef" src="/images/1class-m.jpg" alt="" class="scroll-image-mobile" @load="calculateScrollOffsetMobile"></Link>
+                                <Link :href="currentSlideLink" class="slide-mobile"><img ref="scrollImageMobileRef" :src="currentMobileImage" alt="" class="scroll-image-mobile" @load="calculateScrollOffsetMobile"></Link>
                             </div>
                             <div class="mockup-mobile absolute">
                                 <img src="/images/smartphone.svg" alt="">
                             </div>
                         </div>
                         <div class="arrows absolute z-50 top-1/2 left-0 w-full flex items-center justify-between h-0">
-                            <div class="arrow-prev h-8 w-8 min-w-8 rounded-full bg-[rgba(0,0,0,0.5)] hover:bg-[#333333] flex items-center justify-center cursor-pointer">
+                            <div class="arrow-prev h-8 w-8 min-w-8 rounded-full bg-[rgba(0,0,0,0.5)] hover:bg-[#333333] flex items-center justify-center cursor-pointer" @click="goToPrevSlide">
                                 <span class="icon w-[9px] h-[10px] block  min-w-[14px] rotate-180">
                                     <svg class="h-full w-full block fill-[#ffffff]"><use xlink:href="/images/sprite.svg#slide-arrow"></use></svg>
                                 </span>
                             </div>
-                            <div class="arrow-next h-8 w-8 min-w-8 rounded-full bg-[rgba(0,0,0,0.5)] hover:bg-[#333333] flex items-center justify-center cursor-pointer">
+                            <div class="arrow-next h-8 w-8 min-w-8 rounded-full bg-[rgba(0,0,0,0.5)] hover:bg-[#333333] flex items-center justify-center cursor-pointer" @click="goToNextSlide">
                                 <span class="icon w-[9px] h-[10px] block  min-w-[14px]">
                                     <svg class="h-full w-full block fill-[#ffffff]"><use xlink:href="/images/sprite.svg#slide-arrow"></use></svg>
                                 </span>

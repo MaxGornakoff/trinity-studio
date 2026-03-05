@@ -20,6 +20,7 @@ const form = useForm({
     is_featured: false,
     is_published: false,
     show_in_slider: false,
+    region: 'russia',
     published_at: '',
 });
 
@@ -230,6 +231,21 @@ const submit = () => {
                                 <input v-model="form.show_in_slider" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm" />
                                 Добавить в слайдер
                             </label>
+                    </div>
+
+                    <div>
+                        <InputLabel value="География проекта" />
+                        <div class="mt-2 flex gap-6">
+                            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                <input v-model="form.region" type="radio" value="russia" class="border-gray-300 text-indigo-600 shadow-sm" />
+                                Россия
+                            </label>
+                            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                <input v-model="form.region" type="radio" value="world" class="border-gray-300 text-indigo-600 shadow-sm" />
+                                Мир
+                            </label>
+                        </div>
+                        <InputError class="mt-2" :message="form.errors.region" />
                     </div>
 
                     <div class="flex items-center gap-4">
