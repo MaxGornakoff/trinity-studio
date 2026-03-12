@@ -135,6 +135,43 @@ const switchTab = (tab) => {
 // services hover state
 const hoveredService = ref(null);
 
+// cursor spotlight effect for services
+const servicesContainerRef = ref(null);
+const spotlightX = ref(0);
+const spotlightY = ref(0);
+const showSpotlight = ref(false);
+
+const handleServicesMouseMove = (e) => {
+    if (!servicesContainerRef.value) return;
+    const rect = servicesContainerRef.value.getBoundingClientRect();
+    spotlightX.value = e.clientX - rect.left;
+    spotlightY.value = e.clientY - rect.top;
+    
+    // Apply light text effect to elements under spotlight
+    const cards = servicesContainerRef.value.querySelectorAll('.service-card');
+    cards.forEach(card => {
+        const cardRect = card.getBoundingClientRect();
+        const cardX = cardRect.left - rect.left + cardRect.width / 2;
+        const cardY = cardRect.top - rect.top + cardRect.height / 2;
+        
+        // Apply gradient with light text under spotlight, white text outside
+        const gradX = spotlightX.value;
+        const gradY = spotlightY.value;
+        
+        card.style.setProperty('--grad-x', gradX + 'px');
+        card.style.setProperty('--grad-y', gradY + 'px');
+    });
+};
+
+const handleServicesMouseEnter = () => {
+    showSpotlight.value = true;
+};
+
+const handleServicesMouseLeave = () => {
+    showSpotlight.value = false;
+    hoveredService.value = null;
+};
+
 // FAQ items with expandable state
 const faqs = ref([
     {
@@ -675,13 +712,37 @@ const handleMobileMouseLeave = () => {
 
                 <!-- services content -->
                 <div
-                    class="flex flex-wrap tab-content mt-[50px] gap-[30px] services-grid"
+                    ref="servicesContainerRef"
+                    class="flex flex-wrap tab-content mt-[50px] gap-[30px] services-grid relative"
                     :class="{ 'tab-content--active': activeTab === 'services' }"
+                    @mousemove="handleServicesMouseMove"
+                    @mouseenter="handleServicesMouseEnter"
+                    @mouseleave="handleServicesMouseLeave"
                 >
-                    <article v-for="service in services" :key="service.title" class="service-card rounded-lg bg-[#262626] p-[30px] text-white flex flex-col justify-between basis-[calc(33%-17px)] min-h-[212px] transition-opacity duration-200">
+                    <!-- spotlight effect with transition -->
+                    <transition name="spotlight">
+                        <div
+                            v-if="showSpotlight"
+                            class="services-spotlight"
+                            :style="{
+                                left: spotlightX + 'px',
+                                top: spotlightY + 'px'
+                            }"
+                        ></div>
+                    </transition>
+
+
+                    <Link
+                        v-for="service in services"
+                        :key="service.title"
+                        class="service-card rounded-lg bg-[#262626] p-[30px] text-white flex flex-col justify-between basis-[calc(33%-17px)] min-h-[212px] transition-opacity duration-200"
+                        :class="{ 'opacity-50': hoveredService && hoveredService !== service.title }"
+                        @mouseenter="hoveredService = service.title"
+                        @mouseleave="hoveredService = null"
+                    >
                         <h3 class="text-lg font-semibold leading-tight sm:text-[24px]">{{ service.title }}</h3>
                         <p class="text-[12px] font-[400] leading-relaxed text-white sm:text-[16px]">{{ service.text }}</p>
-                    </article>
+                    </Link>
                 </div>
 
                 <!-- FAQ content -->
@@ -1089,5 +1150,63 @@ const handleMobileMouseLeave = () => {
 }
 .tab-content--active {
     display: flex;
+}
+
+
+/* spotlight effect */
+.services-grid, .services-grid * {
+    cursor: none !important;
+}
+.services-grid {
+    position: relative;
+}
+
+.services-spotlight {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    mix-blend-mode: lighten;
+    /* opacity: 0.6; */
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    z-index: 20; /* below text z-index 30 */
+    transition: width 0.2s ease, height 0.2s ease;
+
+}
+
+/* transition classes for spotlight */
+.spotlight-enter-active, .spotlight-leave-active {
+    /* transition: opacity 0.2s ease; */
+        transition: width 0.2s ease, height 0.2s ease;
+}
+.spotlight-enter-from, .spotlight-leave-to {
+    /* opacity: 0; */
+    width: 0;
+    height: 0;
+}
+.spotlight-enter-to, .spotlight-leave-from {
+    opacity: 1;
+}
+
+.services-grid:not(:hover) .services-spotlight {
+    /* opacity: 0; */
+    width: 0;
+    height: 0;
+}
+
+/* service card base */
+.service-card {
+    position: relative;
+}
+
+.service-card h3,
+.service-card p {
+    color: #ffffff;
+    mix-blend-mode: difference;
+    position: relative;
+    z-index: 30;
+    transition: color 0.2s ease;
 }
 </style>
