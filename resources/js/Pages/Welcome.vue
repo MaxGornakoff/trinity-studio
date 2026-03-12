@@ -20,11 +20,13 @@ const isMobileHovered = ref(false);
 const isTransitioning = ref(false);
 const transitionDirection = ref('next');
 const isPreparingSlide = ref(false);
+const isPreloadLagging = ref(false);
 
 const desktopContainerRef = ref(null);
 const mobileContainerRef = ref(null);
 
 const TRANSITION_MS = 600;
+const PRELOAD_MAX_WAIT_MS = 350;
 
 const services = [
     {
@@ -124,6 +126,118 @@ const props = defineProps({
     },
 });
 
+// tabs state
+const activeTab = ref('services');
+const switchTab = (tab) => {
+    activeTab.value = tab;
+};
+
+// services hover state
+const hoveredService = ref(null);
+
+// FAQ items with expandable state
+const faqs = ref([
+    {
+        question: 'Какой подход к дизайну сайта обеспечивает лучшую конверсию?',
+        answer: `Эффективный дизайн строится на принципах UX-ориентированности:
+<ul class="list-disc list-inside">
+    <li>Чёткая визуальная иерархия и понятная навигация</li>
+    <li>Адаптивность под все устройства (mobile-first)</li>
+    <li>Быстрая загрузка контента (оптимизированные изображения, минимизация скриптов)</li>
+    <li>Призывы к действию (CTA), выделенные контрастом и расположением</li>
+    <li>Тестирование гипотез через A/B-тесты и тепловые карты</li>
+</ul>
+<p>Результат: снижение показателя отказов и рост конверсии на 20–40%.</p>`,
+        open: false,
+    },
+    {
+        question: 'Какую технологию выбрать для разработки: React, Next.js или классический стек?',
+        answer: `<p>Выбор зависит от задач проекта (в виде таблицы):</p>
+<table class="w-full text-left border-collapse">
+    <thead>
+        <tr>
+            <th class="border px-2 py-1">Задача:</th>
+            <th class="border px-2 py-1">Рекомендуемое решение:</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td class="border px-2 py-1">Лендинг, блог, контент-сайт</td>
+            <td class="border px-2 py-1">Next.js (SSR/SSG) + TypeScript</td>
+        </tr>
+        <tr>
+            <td class="border px-2 py-1">SPA, дашборд, сложная интерактивность</td>
+            <td class="border px-2 py-1">React + Vite + Zustand/Redux</td>
+        </tr>
+        <tr>
+            <td class="border px-2 py-1">Простой сайт с формой заявки</td>
+            <td class="border px-2 py-1">Статический сайт или готовый CMS</td>
+        </tr>
+        <tr>
+            <td class="border px-2 py-1">Высокая нагрузка, масштабируемость</td>
+            <td class="border px-2 py-1">Next.js + Node.js + кэширование (Redis)</td>
+        </tr>
+    </tbody>
+</table>
+<p>Совет: Начинайте с минимально жизнеспособного продукта (MVP), чтобы проверить гипотезы до масштабных вложений.</p>`,
+        open: false,
+    },
+    {
+        question: 'Что входит в техническое сопровождение сайта и как часто нужно обновлять контент?',
+        answer: `<p>Стандартный пакет сопровождения включает:</p>
+<ul class="list-disc list-inside">
+    <li>✅ Мониторинг работоспособности (24/7) и резервное копирование</li>
+    <li>✅ Обновление ядра, плагинов, зависимостей (ежемесячно)</li>
+    <li>✅ Исправление багов и уязвимостей безопасности</li>
+    <li>✅ Оптимизация скорости загрузки (раз в квартал)</li>
+    <li>✅ Консультации по добавлению нового контента</li>
+</ul>
+<p>Рекомендация: Контент стоит обновлять минимум 1–2 раза в месяц — это положительно влияет на SEO и удержание аудитории.</p>`,
+        open: false,
+    },
+    {
+        question: 'Какие 3 шага дадут максимальный эффект для SEO нового сайта?',
+        answer: `<p>Приоритетные действия:</p>
+<ol class="list-decimal list-inside">
+    <li>Техническая база: корректная структура URL, robots.txt, sitemap.xml, микроразметка Schema.org, HTTPS, скорость загрузки &lt;2.5 с</li>
+    <li>Контент-стратегия: семантическое ядро (ключевые запросы), уникальные тексты с пользой для пользователя, регулярное обновление</li>
+    <li>Внешние сигналы: качественная ссылочная масса (гостевые посты, каталоги, партнёрства), упоминания в соцсетях</li>
+</ol>
+<p>Важно: Первые устойчивые результаты в органике обычно появляются через 3–6 месяцев системной работы.</p>`,
+        open: false,
+    },
+    {
+        question: 'Как безопасно интегрировать сайт с внешними сервисами (платёжные системы, CRM, аналитика)?',
+        answer: `<p>Ключевые принципы безопасной интеграции:</p>
+<ul class="list-disc list-inside">
+    <li>Использование OAuth 2.0 / API-ключей с ограниченным доступом (scopes)</li>
+    <li>Хранение секретов в переменных окружения (не в коде!)</li>
+    <li>Валидация и санитизация всех входящих данных</li>
+    <li>Логирование запросов и мониторинг аномалий</li>
+    <li>Регулярный аудит зависимостей (npm audit, Snyk, Dependabot)</li>
+</ul>
+<p>Пример: Для подключения платежного шлюза используйте webhook-подписи и проверяйте подпись ответа от провайдера.</p>`,
+        open: false,
+    },
+    {
+        question: 'Как согласовать работу дизайнера, разработчика и SEO-специалиста, чтобы избежать переделок?',
+        answer: `<p>Эффективная коллаборация строится на:</p>
+<ul class="list-disc list-inside">
+    <li>Едином брифе с целями, метриками успеха и ограничениями</li>
+    <li>Прототипировании (Figma + комментарии) до начала разработки</li>
+    <li>Чек-листах для передачи макетов в вёрстку (адаптивы, состояния, анимации)</li>
+    <li>Раннем подключении SEO: мета-теги, структура заголовков, ЧПУ — закладываются на этапе дизайна</li>
+    <li>Еженедельным синкам и использованию трекера задач (Jira, Linear, Notion)</li>
+</ul>
+<p>Результат: сокращение времени на доработки на 30–50% и более предсказуемый релиз.</p>`,
+        open: false,
+    },
+]);
+
+const toggleFaq = (index) => {
+    faqs.value[index].open = !faqs.value[index].open;
+};
+
 const getSlideData = (index) => {
     if (!props.sliderProjects.length) {
         return {
@@ -168,6 +282,10 @@ const preloadImage = (src) => new Promise((resolve) => {
     if (typeof img.decode === 'function') {
         img.decode().then(done).catch(done);
     }
+});
+
+const wait = (ms) => new Promise((resolve) => {
+    setTimeout(resolve, ms);
 });
 
 const applyCurrentSlide = (index) => {
@@ -218,7 +336,17 @@ const runSlideTransition = async (targetIndex, direction) => {
 
     setTimeout(async () => {
         isPreparingSlide.value = true;
-        await preloadPromise;
+        const preloadState = await Promise.race([
+            preloadPromise.then(() => 'ready'),
+            wait(PRELOAD_MAX_WAIT_MS).then(() => 'timeout'),
+        ]);
+
+        if (preloadState === 'timeout') {
+            isPreloadLagging.value = true;
+            await preloadPromise;
+            isPreloadLagging.value = false;
+        }
+
         isPreparingSlide.value = false;
 
         applyCurrentSlide(targetIndex);
@@ -475,7 +603,7 @@ const handleMobileMouseLeave = () => {
         <main>
             <section class="mx-auto max-w-6xl px-4 pb-28 pt-[128px] sm:px-6 lg:px-5">
                 <div class="text-center">
-                    <h1 class="text-4xl font-bold leading-[1] tracking-[-0.03em] sm:text-6xl md:text-[92px]">Создаём сайты,<br />которые работают</h1>
+                    <h1 class="text-[#333333] text-4xl font-bold leading-[1] tracking-[-0.03em] sm:text-6xl md:text-[92px]">Создаём сайты,<br />которые работают</h1>
                     <p class="mx-auto mt-8  text-[12px] leading-relaxed text-[#333333] sm:text-[18px]" id="about">
                         Помогаем клиентам выйти в интернет: сайт, дизайн, реклама — легко и эффективно.
                     </p>
@@ -493,7 +621,7 @@ const handleMobileMouseLeave = () => {
                             </Link>
                         </div>
                         <div ref="mobileContainerRef" class="mobile cursor-pointer absolute top-[133px] right-14 max-w-[308px] w-full h-[620px] flex items-center justify-center" :class="{ 'is-hovered': isMobileHovered }" :style="{ '--scroll-offset-mobile': scrollOffsetMobile + '%' }" @mouseenter="handleMobileMouseEnter" @mouseleave="handleMobileMouseLeave">
-                            <div ref="slideContentMobileRef" class="slide-content--mobile overflow-hidden absolute top-[1px] w-[91%] h-full rounded-[50px]">
+                            <div ref="slideContentMobileRef" class="slide-content--mobile overflow-hidden absolute top-[1px] w-[91%] h-[99%] rounded-[50px]">
                                 <Link :href="currentSlideLink" class="slide-mobile"><img ref="scrollImageMobileRef" :src="currentMobileImage" alt="" class="scroll-image-mobile" @load="calculateScrollOffsetMobile"></Link>
                             </div>
                             <div class="mockup-mobile absolute">
@@ -512,29 +640,79 @@ const handleMobileMouseLeave = () => {
                                 </span>
                             </div>
                         </div>
+                        <div v-if="isPreloadLagging" class="preload-indicator" aria-hidden="true" />
                     </div>
                 
             </section>
 
-            <section class="mx-auto max-w-6xl px-4 pb-28 sm:px-6 lg:px-8" id="services">
-                <div class="grid gap-8 sm:grid-cols-2 sm:items-end">
-                    <h2 class="text-3xl font-bold leading-tight tracking-[-0.02em] sm:text-5xl">Что мы делаем?</h2>
-                    <p class="max-w-md text-[13px] leading-relaxed text-gray-500 sm:justify-self-end">
+            <section class="mx-auto max-w-6xl px-4 pb-28 sm:px-6 lg:px-8 pt-[180px]" id="services">
+                <div class="">
+                    <h2 class="text-3xl font-bold leading-tight tracking-[-0.02em] sm:text-5xl mb-[30px] text-[#333333]">Что мы делаем?</h2>
+                    <p class="max-w-[595px] text-[16px] leading-relaxed text-[#333333] sm:justify-self-end">
                         Мы создаём цифровые решения, которые работают на ваш бизнес: от дизайна и разработки до сопровождения,
-                        продвижения и рекламы.
+                        продвижения и рекламы. <b>Наша цель — не просто красивый интерфейс,</b> а реальный результат: рост трафика, клиентов и доверия к бренду.
                     </p>
                 </div>
 
-                <div class="mt-10 flex items-center gap-5 text-2xl font-semibold sm:text-[30px]">
-                    <span>Услуги</span>
-                    <span class="text-gray-400">FAQ</span>
+                <div class="mt-10 flex items-center gap-5 text-2xl font-semibold sm:text-[30px] tabs tabs--main">
+                    <span
+                        class="tab cursor-pointer"
+                        :class="activeTab === 'services' ? 'tab--active text-[#333333]' : 'text-gray-400'
+                        "
+                        @click="switchTab('services')"
+                    >
+                        Услуги
+                    </span>
+                    <span
+                        class="tab cursor-pointer"
+                        :class="activeTab === 'faq' ? 'tab--active text-[#333333]' : 'text-gray-400'
+                        "
+                        @click="switchTab('faq')"
+                    >
+                        FAQ
+                    </span>
                 </div>
 
-                <div class="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-                    <article v-for="service in services" :key="service.title" class="rounded-lg bg-gray-800 p-6 text-white">
-                        <h3 class="text-lg font-semibold leading-tight sm:text-[22px]">{{ service.title }}</h3>
-                        <p class="mt-3 text-[12px] leading-relaxed text-gray-300 sm:text-[13px]">{{ service.text }}</p>
+                <!-- services content -->
+                <div
+                    class="flex flex-wrap tab-content mt-[50px] gap-[30px] services-grid"
+                    :class="{ 'tab-content--active': activeTab === 'services' }"
+                >
+                    <article v-for="service in services" :key="service.title" class="service-card rounded-lg bg-[#262626] p-[30px] text-white flex flex-col justify-between basis-[calc(33%-17px)] min-h-[212px] transition-opacity duration-200">
+                        <h3 class="text-lg font-semibold leading-tight sm:text-[24px]">{{ service.title }}</h3>
+                        <p class="text-[12px] font-[400] leading-relaxed text-white sm:text-[16px]">{{ service.text }}</p>
                     </article>
+                </div>
+
+                <!-- FAQ content -->
+                <div
+                    class="mt-8 tab-content"
+                    :class="{ 'tab-content--active': activeTab === 'faq' }"
+                    v-if="activeTab === 'faq'"
+                >
+                    <div class="space-y-4">
+                        <div
+                            v-for="(item, index) in faqs"
+                            :key="index"
+                            class="border rounded-lg p-4"
+                        >
+                            <button
+                                class="w-full text-left font-semibold flex justify-between items-center"
+                                @click="toggleFaq(index)"
+                            >
+                                <span>{{ item.question }}</span>
+                                <span class="ml-2">
+                                    <svg v-if="!item.open" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+                                    </svg>
+                                </span>
+                            </button>
+                            <div v-show="item.open" class="mt-2 text-sm text-gray-700" v-html="item.answer"></div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -659,6 +837,21 @@ const handleMobileMouseLeave = () => {
     pointer-events: auto;
 }
 
+.preload-indicator {
+    position: absolute;
+    top: 52%;
+    left: 50%;
+    z-index: 60;
+    width: 18px;
+    height: 18px;
+    margin-left: -9px;
+    margin-top: -9px;
+    border-radius: 9999px;
+    border: 2px solid rgba(51, 51, 51, 0.2);
+    border-top-color: rgba(51, 51, 51, 0.9);
+    animation: preloadSpin 0.7s linear infinite;
+}
+
 /* Анимации переключения слайдов */
 
 /* Desktop mockup - выезд вправо (next) */
@@ -754,6 +947,15 @@ const handleMobileMouseLeave = () => {
     100% {
         transform: scale(1);
         opacity: 1;
+    }
+}
+
+@keyframes preloadSpin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
     }
 }
 
@@ -879,5 +1081,13 @@ const handleMobileMouseLeave = () => {
         transform: translateY(0);
         animation-timing-function: ease-out;
     }
+}
+
+/* hide inactive tab contents */
+.tab-content {
+    display: none;
+}
+.tab-content--active {
+    display: flex;
 }
 </style>
