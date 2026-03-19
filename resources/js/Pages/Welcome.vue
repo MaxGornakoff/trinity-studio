@@ -188,7 +188,7 @@ const faqs = ref([
         open: false,
     },
     {
-        question: 'Какую технологию выбрать для разработки: React, Next.js или классический стек?',
+        question: 'Какую технологию выбрать для разработки?',
         answer: `<p>Выбор зависит от задач проекта (в виде таблицы):</p>
 <table class="w-full text-left border-collapse">
     <thead>
@@ -220,7 +220,7 @@ const faqs = ref([
         open: false,
     },
     {
-        question: 'Что входит в техническое сопровождение сайта и как часто нужно обновлять контент?',
+        question: 'Что входит в техническое сопровождение сайта?',
         answer: `<p>Стандартный пакет сопровождения включает:</p>
 <ul class="list-disc list-inside">
     <li>✅ Мониторинг работоспособности (24/7) и резервное копирование</li>
@@ -244,7 +244,7 @@ const faqs = ref([
         open: false,
     },
     {
-        question: 'Как безопасно интегрировать сайт с внешними сервисами (платёжные системы, CRM, аналитика)?',
+        question: 'Как безопасно интегрировать сайт с внешними сервисами?',
         answer: `<p>Ключевые принципы безопасной интеграции:</p>
 <ul class="list-disc list-inside">
     <li>Использование OAuth 2.0 / API-ключей с ограниченным доступом (scopes)</li>
@@ -257,7 +257,7 @@ const faqs = ref([
         open: false,
     },
     {
-        question: 'Как согласовать работу дизайнера, разработчика и SEO-специалиста, чтобы избежать переделок?',
+        question: 'Как согласовать работу специалистов, чтобы избежать переделок?',
         answer: `<p>Эффективная коллаборация строится на:</p>
 <ul class="list-disc list-inside">
     <li>Едином брифе с целями, метриками успеха и ограничениями</li>
@@ -613,7 +613,7 @@ const handleMobileMouseLeave = () => {
     <Head title="Trinity Studio" />
 
     <div class="min-h-screen bg-gray-100 font-sans text-gray-900 tracking-tight">
-        <header class="pt-8">
+        <header class="pt-8 bg-[#ffffff]">
             <div class="mx-auto flex max-w-6xl items-center justify-between px-3 sm:px-5 lg:px-5">
                 <Link :href="'/'" class="">
                     <img src="/images/logotype1.svg" alt="Logo" />
@@ -637,7 +637,7 @@ const handleMobileMouseLeave = () => {
             </div>
         </header>
 
-        <main>
+        <main class="bg-[#ffffff]">
             <section class="mx-auto max-w-6xl px-4 pb-28 pt-[128px] sm:px-6 lg:px-5">
                 <div class="text-center">
                     <h1 class="text-[#333333] text-4xl font-bold leading-[1] tracking-[-0.03em] sm:text-6xl md:text-[92px]">Создаём сайты,<br />которые работают</h1>
@@ -747,21 +747,21 @@ const handleMobileMouseLeave = () => {
 
                 <!-- FAQ content -->
                 <div
-                    class="mt-8 tab-content"
+                    class="mt-8 tab-content faq-grid w-full"
                     :class="{ 'tab-content--active': activeTab === 'faq' }"
                     v-if="activeTab === 'faq'"
                 >
-                    <div class="space-y-4">
+                    <div class="space-y-4 w-full">
                         <div
                             v-for="(item, index) in faqs"
                             :key="index"
-                            class="border rounded-lg p-4"
+                            class="rounded-lg py-5 px-9 mt-1!important bg-[#f7f4f4] faq-item"
                         >
                             <button
                                 class="w-full text-left font-semibold flex justify-between items-center"
                                 @click="toggleFaq(index)"
                             >
-                                <span>{{ item.question }}</span>
+                                <span class="text-[22px]">{{ item.question }}</span>
                                 <span class="ml-2">
                                     <svg v-if="!item.open" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -1200,6 +1200,7 @@ const handleMobileMouseLeave = () => {
 .service-card {
     position: relative;
 }
+
 
 .service-card h3,
 .service-card p {
