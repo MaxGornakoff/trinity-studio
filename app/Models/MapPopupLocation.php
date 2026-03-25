@@ -12,6 +12,7 @@ class MapPopupLocation extends Model
     protected $fillable = [
         'land_id',
         'title',
+        'hover_image',
         'sort_order',
     ];
 }

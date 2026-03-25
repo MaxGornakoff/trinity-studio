@@ -38,19 +38,25 @@ Route::get('/', function () {
             ->where('is_published', true)
             ->whereNotNull('map_land_id')
             ->whereNotNull('logo_image')
-            ->select(['id', 'title', 'slug', 'map_land_id', 'logo_image'])
+            ->select(['id', 'title', 'slug', 'map_land_id', 'logo_image', 'properties', 'region'])
             ->orderBy('order_column')
             ->get();
 
-        $mapPopupTitles = MapPopupLocation::query()
+        $mapPopupLocations = MapPopupLocation::query()
             ->orderBy('sort_order')
-            ->pluck('title', 'land_id')
+            ->get(['land_id', 'title', 'hover_image'])
+            ->mapWithKeys(fn (MapPopupLocation $location) => [
+                $location->land_id => [
+                    'title' => $location->title,
+                    'hover_image' => $location->hover_image,
+                ],
+            ])
             ->all();
     } catch (\Throwable $exception) {
         $featuredProjects = [];
         $sliderProjects = [];
         $mapProjects = [];
-        $mapPopupTitles = [];
+        $mapPopupLocations = [];
     }
 
     return Inertia::render('Welcome', [
@@ -58,7 +64,7 @@ Route::get('/', function () {
         'featuredProjects' => $featuredProjects,
         'sliderProjects' => $sliderProjects,
         'mapProjects' => $mapProjects,
-        'mapPopupTitles' => $mapPopupTitles,
+        'mapPopupLocations' => $mapPopupLocations,
     ]);
 })->name('home');
 

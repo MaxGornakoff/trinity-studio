@@ -7,6 +7,13 @@ import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 
+const readImageAsDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => resolve(event.target?.result ?? null);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+});
+
 const props = defineProps({
     rows: {
         type: Array,
@@ -20,8 +27,11 @@ const form = useForm({
             id: row.id ?? null,
             land_id: row.land_id ?? '',
             title: row.title ?? '',
+            existing_hover_image: row.hover_image ?? '',
+            hover_image: null,
+            hover_image_preview: row.hover_image ?? null,
         }))
-        : [{ id: null, land_id: '', title: '' }],
+        : [{ id: null, land_id: '', title: '', existing_hover_image: '', hover_image: null, hover_image_preview: null }],
 });
 
 const addRow = () => {
@@ -29,7 +39,27 @@ const addRow = () => {
         id: null,
         land_id: '',
         title: '',
+        existing_hover_image: '',
+        hover_image: null,
+        hover_image_preview: null,
     });
+};
+
+const handleHoverImageChange = async (index, event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+        return;
+    }
+
+    form.rows[index].hover_image = file;
+    form.rows[index].existing_hover_image = '';
+    form.rows[index].hover_image_preview = await readImageAsDataUrl(file);
+};
+
+const removeHoverImage = (index) => {
+    form.rows[index].hover_image = null;
+    form.rows[index].existing_hover_image = '';
+    form.rows[index].hover_image_preview = null;
 };
 
 const removeRow = (index) => {
@@ -41,7 +71,18 @@ const removeRow = (index) => {
 };
 
 const submit = () => {
-    form.put(route('admin.map-popup-locations.update'));
+    form.transform((data) => ({
+        _method: 'put',
+        rows: data.rows.map((row) => ({
+            id: row.id,
+            land_id: row.land_id,
+            title: row.title,
+            existing_hover_image: row.existing_hover_image,
+            hover_image: row.hover_image,
+        })),
+    })).post(route('admin.map-popup-locations.update'), {
+        forceFormData: true,
+    });
 };
 </script>
 
@@ -70,7 +111,7 @@ const submit = () => {
                         <div
                             v-for="(row, index) in form.rows"
                             :key="row.id ?? `new-${index}`"
-                            class="grid gap-4 rounded-lg border border-gray-200 p-4 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)_auto] md:items-start"
+                            class="grid gap-4 rounded-lg border border-gray-200 p-4 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)_minmax(0,220px)_auto] md:items-start"
                         >
                             <div>
                                 <InputLabel :for="`land_id_${index}`" value="Path ID" />
@@ -82,6 +123,39 @@ const submit = () => {
                                 <InputLabel :for="`title_${index}`" value="Заголовок в popup" />
                                 <TextInput :id="`title_${index}`" v-model="row.title" type="text" class="mt-1 block w-full" placeholder="Франция" />
                                 <InputError class="mt-2" :message="form.errors[`rows.${index}.title`]" />
+                            </div>
+
+                            <div>
+                                <InputLabel :for="`hover_image_${index}`" value="Фон" />
+                                <input
+                                    :id="`hover_image_${index}`"
+                                    type="file"
+                                    accept="image/*"
+                                    @change="handleHoverImageChange(index, $event)"
+                                    class="mt-1 block w-full text-sm text-gray-500
+                                        file:mr-3 file:py-2 file:px-3
+                                        file:rounded-md file:border-0
+                                        file:text-sm file:font-semibold
+                                        file:bg-gray-900 file:text-white
+                                        hover:file:bg-gray-800
+                                        cursor-pointer"
+                                />
+                                <InputError class="mt-2" :message="form.errors[`rows.${index}.hover_image`]" />
+
+                                <div v-if="row.hover_image_preview" class="mt-3">
+                                    <img
+                                        :src="row.hover_image_preview"
+                                        alt="Флаг"
+                                        class="h-[50px] w-[50px] rounded-md border border-gray-200 object-cover"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="mt-2 text-sm font-medium text-red-600 hover:text-red-700"
+                                        @click="removeHoverImage(index)"
+                                    >
+                                        Удалить изображение
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="flex items-end md:pt-6">

@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 
 const slideContentRef = ref(null);
 const scrollImageRef = ref(null);
@@ -30,6 +30,15 @@ const mapPopup = ref({
     visible: false,
     x: 0,
     y: 0,
+    landId: null,
+    title: '',
+    hoverImage: '',
+    projectCountLabel: '',
+    projects: [],
+});
+
+const mapDetailsPopup = ref({
+    visible: false,
     title: '',
     projects: [],
 });
@@ -62,21 +71,6 @@ const services = [
         title: 'Маркетплейсы',
         text: 'Автоматизируем выгрузку товаров на Wildberries, Ozon, Я.Маркет и другие площадки.',
     },
-];
-
-const projectCards = [
-    { title: 'Taxymatch covoiturage', tone: 'from-indigo-500 to-blue-500' },
-    { title: 'First Class Yachting', tone: 'from-cyan-500 to-blue-600' },
-    { title: 'Fromane', tone: 'from-neutral-500 to-neutral-700' },
-    { title: 'Debenhams', tone: 'from-pink-500 to-fuchsia-600' },
-    { title: 'PPIZZA', tone: 'from-stone-300 to-stone-500' },
-    { title: 'MTransfer', tone: 'from-slate-600 to-slate-900' },
-    { title: 'VEF Kvartāls', tone: 'from-zinc-700 to-neutral-900' },
-    { title: 'My Nomad Tales', tone: 'from-sky-200 to-slate-400' },
-    { title: 'SVALSON', tone: 'from-stone-200 to-gray-400' },
-    { title: 'Bamboo laser', tone: 'from-emerald-50 to-gray-300' },
-    { title: 'Rozenbergs', tone: 'from-zinc-100 to-zinc-300' },
-    { title: 'CMB Housing solutions', tone: 'from-teal-300 to-cyan-600' },
 ];
 
 const mapRows = [
@@ -137,13 +131,17 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
-    mapPopupTitles: {
+    mapPopupLocations: {
         type: Object,
         default: () => ({}),
     },
 });
 
-const mapProjectsByLand = props.mapProjects.reduce((acc, project) => {
+const getMapPopupMeta = (landId) => props.mapPopupLocations[landId] || {};
+
+const activeCountry = ref('world');
+
+const mapProjectsAllByLand = props.mapProjects.reduce((acc, project) => {
     if (!project.map_land_id) {
         return acc;
     }
@@ -156,22 +154,79 @@ const mapProjectsByLand = props.mapProjects.reduce((acc, project) => {
     return acc;
 }, {});
 
+const filteredMapProjects = computed(() =>
+    props.mapProjects.filter((project) => {
+        const region = project.region ?? 'russia';
+        return region === activeCountry.value;
+    })
+);
+
+const filteredProjectsCards = computed(() =>
+    props.featuredProjects.filter((project) => {
+        const region = project.region ?? 'russia';
+        return region === activeCountry.value;
+    })
+);
+
+const mapProjectsByLand = computed(() =>
+    filteredMapProjects.value.reduce((acc, project) => {
+        if (!project.map_land_id) {
+            return acc;
+        }
+
+        if (!acc[project.map_land_id]) {
+            acc[project.map_land_id] = [];
+        }
+
+        acc[project.map_land_id].push(project);
+        return acc;
+    }, {})
+);
+
+const formatProjectCount = (count) => {
+    const absCount = Math.abs(count) % 100;
+    const lastDigit = absCount % 10;
+
+    if (absCount > 10 && absCount < 20) {
+        return `${count} проектов`;
+    }
+
+    if (lastDigit === 1) {
+        return `${count} проект`;
+    }
+
+    if (lastDigit >= 2 && lastDigit <= 4) {
+        return `${count} проекта`;
+    }
+
+    return `${count} проектов`;
+};
+
 const showMapPopup = (landId, event) => {
     cancelHideMapPopup();
 
-    const projects = mapProjectsByLand[landId] || [];
+    if (mapDetailsPopup.value.visible) {
+        return;
+    }
+
+    const projects = mapProjectsByLand.value[landId] || [];
     if (!projects.length || !mapContainerRef.value) {
         mapPopup.value.visible = false;
         return;
     }
 
+    const popupMeta = getMapPopupMeta(landId);
+
     const rect = mapContainerRef.value.getBoundingClientRect();
 
     mapPopup.value = {
         visible: true,
-        x: event.clientX - rect.left + 12,
-        y: event.clientY - rect.top + 12,
-        title: props.mapPopupTitles[landId] || '',
+        x: event.clientX - rect.left + 4,
+        y: event.clientY - rect.top + 4,
+        landId,
+        title: popupMeta.title || '',
+        hoverImage: popupMeta.hover_image || '',
+        projectCountLabel: formatProjectCount(projects.length),
         projects,
     };
 };
@@ -182,13 +237,45 @@ const moveMapPopup = (event) => {
     }
 
     const rect = mapContainerRef.value.getBoundingClientRect();
-    mapPopup.value.x = event.clientX - rect.left + 12;
-    mapPopup.value.y = event.clientY - rect.top + 12;
+    mapPopup.value.x = event.clientX - rect.left + 4;
+    mapPopup.value.y = event.clientY - rect.top + 4;
 };
 
 const hideMapPopup = () => {
     mapPopup.value.visible = false;
 };
+
+const openMapDetailsPopup = (landId = mapPopup.value.landId) => {
+    if (!landId) {
+        return;
+    }
+
+    const projects = mapProjectsByLand.value[landId] || [];
+    if (!projects.length) {
+        return;
+    }
+
+    const popupMeta = getMapPopupMeta(landId);
+
+    cancelHideMapPopup();
+    hideMapPopup();
+
+    mapDetailsPopup.value = {
+        visible: true,
+        title: popupMeta.title || '',
+        projects,
+    };
+};
+
+const closeMapDetailsPopup = () => {
+    mapDetailsPopup.value.visible = false;
+};
+
+watch(activeCountry, () => {
+    cancelHideMapPopup();
+    hideMapPopup();
+    closeMapDetailsPopup();
+});
 
 const handleResize = () => {
     calculateScrollOffset();
@@ -618,7 +705,7 @@ onMounted(() => {
     window.addEventListener('resize', handleResize);
 
     const mapListenersCleanup = [];
-    Object.keys(mapProjectsByLand).forEach((landId) => {
+    Object.keys(mapProjectsAllByLand).forEach((landId) => {
         const landEl = document.getElementById(landId);
         if (!landEl) {
             return;
@@ -627,7 +714,7 @@ onMounted(() => {
         const handleEnter = (event) => showMapPopup(landId, event);
         const handleMove = (event) => moveMapPopup(event);
 
-        landEl.classList.add('land-with-project');
+        landEl.classList.add('land-interactive');
         landEl.addEventListener('mouseenter', handleEnter);
         landEl.addEventListener('mousemove', handleMove);
         landEl.addEventListener('mouseleave', scheduleHideMapPopup);
@@ -950,9 +1037,9 @@ const handleMobileMouseLeave = () => {
             </section>
 
             <section class="mx-auto max-w-6xl px-4 pb-28 sm:px-6 lg:px-8">
-                <div class="">
+                <div class="mb-[100px]">
                     <h2 class="text-3xl text-[#333333] font-bold leading-tight tracking-[-0.02em] sm:text-5xl">География проектов</h2>
-                    <p class="max-w-[480px] text-[16px] leading-relaxed sm:justify-self-end text-[#333333]">
+                    <p class="max-w-[480px] text-[16px] leading-relaxed sm:justify-self-end text-[#333333] mt-[30px]">
                         Мы работаем с клиентами по всей России и за её пределами — независимо от вашего местоположения, обеспечиваем качественные решения и надёжную поддержку.
                     </p>
                 </div>
@@ -1002,7 +1089,7 @@ const handleMobileMouseLeave = () => {
 <path id="land_41" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M67.3776 216.225V210.599L72.2683 207.777L77.1535 210.593V216.225L72.2683 219.047L67.3776 216.225Z"/>
 <path id="land_42" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M74.1171 227.769V222.143L79.0078 219.321L81.4503 220.726L83.893 222.137V227.775L79.0078 230.591L74.1171 227.769Z"/>
 <path id="land_43" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M60.6438 181.598V175.966L65.5289 173.15L70.4196 175.966V181.598L65.5289 184.42L60.6438 181.598Z"/>
-<path id="land_44" class="land land-with-objects land-with-objects--midle" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M67.3776 193.137V187.51L72.2683 184.689L77.1535 187.51V193.142L72.2683 195.958L67.3776 193.137Z"/>
+<path id="land_44" class="land land-interactive land-with-objects land-with-objects--midle" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M67.3776 193.137V187.51L72.2683 184.689L77.1535 187.51V193.142L72.2683 195.958L67.3776 193.137Z"/>
 <path id="land_45" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M74.1171 204.686V199.054L79.0078 196.233L83.893 199.049V204.686L79.0078 207.503L74.1171 204.686Z"/>
 <path id="land_46" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M80.8565 216.231V210.593L85.7472 207.777L90.6323 210.599V216.225L85.7472 219.047L80.8565 216.231Z"/>
 <path id="land_47" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M87.5959 227.775V222.137L92.481 219.321L97.3717 222.137V227.775L92.481 230.591L87.5959 227.775Z"/>
@@ -1031,7 +1118,7 @@ const handleMobileMouseLeave = () => {
 <path id="land_70" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M107.809 170.054V164.422L112.694 161.601L117.584 164.422V170.054L112.694 172.87L107.809 170.054Z"/>
 <path id="land_71" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M45 146.454V140.822L49.8851 138L54.7758 140.822V146.454L49.8851 149.27L45 146.454Z"/>
 <path id="land_72" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M58 146.454V140.822L62.8851 138L67.7758 140.822V146.454L62.8851 149.27L58 146.454Z"/>
-<path id="land_73" class="land land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M52 135.454V129.822L56.8851 127L61.7758 129.822V135.454L56.8851 138.27L52 135.454Z"/>
+<path id="land_73" class="land land-interactive land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M52 135.454V129.822L56.8851 127L61.7758 129.822V135.454L56.8851 138.27L52 135.454Z"/>
 <path id="land_74" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M39 134.454V128.822L43.8851 126L48.7758 128.822V134.454L43.8851 137.27L39 134.454Z"/>
 <path id="land_75" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M46 124.454V118.822L50.8851 116L55.7758 118.822V124.454L50.8851 127.27L46 124.454Z"/>
 <path id="land_76" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M33 123.454V117.822L37.8851 115L42.7758 117.822V123.454L37.8851 126.27L33 123.454Z"/>
@@ -1177,7 +1264,7 @@ const handleMobileMouseLeave = () => {
 <path id="land_216" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M154.973 66.1632V60.5367L159.864 57.7151L164.749 60.5367V66.1688L159.864 68.9848L154.973 66.1632Z"/>
 <path id="land_217" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M161.713 77.7071V72.0807L166.598 69.2534L171.489 72.0807V77.7071L166.598 80.5288L161.713 77.7071Z"/>
 <path id="land_218" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M175.186 100.795V95.1634L180.077 92.3418L184.962 95.1578V100.801L180.077 103.617L175.186 100.795Z"/>
-<path id="land_219" class="land land-with-objects land-with-objects--hight" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M188.665 123.883V118.246L193.55 115.43L198.441 118.251V123.883L193.55 126.7L188.665 123.883Z"/>
+<path id="land_219" class="land land-interactive land-with-objects land-with-objects--hight" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M188.665 123.883V118.246L193.55 115.43L198.441 118.251V123.883L193.55 126.7L188.665 123.883Z"/>
 <path id="land_220" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M195.405 135.428V129.79L200.29 126.974L205.18 129.796V135.422L200.29 138.244L195.405 135.428Z"/>
 <path id="land_221" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M202.138 146.966V141.334L207.029 138.518L211.914 141.334V146.966L207.029 149.788L202.138 146.966Z"/>
 <path id="land_222" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M208.878 158.51V152.878L213.769 150.062L218.654 152.878V158.51L213.769 161.332L208.878 158.51Z"/>
@@ -1244,7 +1331,7 @@ const handleMobileMouseLeave = () => {
 <path id="land_283" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M195.405 89.2513V83.6192L200.29 80.7976L205.18 83.6192V89.2513L200.29 92.073L195.405 89.2513Z"/>
 <path id="land_284" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M202.138 100.795V95.1634L207.029 92.3418L211.914 95.1578V100.801L207.029 103.617L202.138 100.795Z"/>
 <path id="land_285" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M208.878 112.339V106.707L213.769 103.886L218.654 106.707V112.339L213.769 115.155L208.878 112.339Z"/>
-<path id="land_286" class="land land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M215.617 123.883V118.246L220.502 115.43L225.393 118.251V123.883L220.502 126.7L215.617 123.883Z"/>
+<path id="land_286" class="land land-interactive land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M215.617 123.883V118.246L220.502 115.43L225.393 118.251V123.883L220.502 126.7L215.617 123.883Z"/>
 <path id="land_287" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M222.357 135.428V129.79L227.242 126.974L232.132 129.79V135.428L227.242 138.244L222.357 135.428Z"/>
 <path id="land_288" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M229.09 146.966V141.334L233.981 138.518L238.866 141.334V146.966L233.981 149.788L229.09 146.966Z"/>
 <path id="land_289" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M235.83 158.51V152.884L240.721 150.062L245.606 152.878V158.51L243.158 159.927L240.721 161.332L235.83 158.51Z"/>
@@ -1282,14 +1369,14 @@ const handleMobileMouseLeave = () => {
 <path id="land_321" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M235.83 135.422V129.796L240.721 126.974L245.606 129.79V135.428L240.721 138.244L235.83 135.422Z"/>
 <path id="land_322" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M242.569 146.966V141.334L247.454 138.518L252.345 141.34V146.966L247.454 149.788L242.569 146.966Z"/>
 <path id="land_323" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M249.303 158.51V152.884L254.194 150.062L259.085 152.884V158.51L256.637 159.927L254.194 161.332L249.303 158.51Z"/>
-<path id="land_324" class="land land-with-objects land-with-objects--midle" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M256.048 170.054V164.422L260.933 161.601L265.819 164.422V170.054L260.933 172.876L256.048 170.054Z"/>
+<path id="land_324" class="land land-interactive land-with-objects land-with-objects--midle" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M256.048 170.054V164.422L260.933 161.601L265.819 164.422V170.054L260.933 172.876L256.048 170.054Z"/>
 <path id="land_325" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M262.782 181.598V175.966L267.667 173.15L272.558 175.966V181.598L267.667 184.42L262.782 181.598Z"/>
 <path id="land_326" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M269.522 193.142V187.505L271.964 186.099L274.407 184.689L279.297 187.51V193.137L274.407 195.958L269.522 193.142Z"/>
 <path id="land_327" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M276.255 204.686V199.054L281.146 196.233L286.031 199.054V204.686L281.146 207.503L276.255 204.686Z"/>
 <path id="land_328" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M283.001 216.231V210.593L287.886 207.777L292.771 210.593V216.231L287.886 219.047L283.001 216.231Z"/>
 <path id="land_329" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M289.734 227.775V222.137L294.625 219.321L299.51 222.137V227.769L294.625 230.591L289.734 227.775Z"/>
 <path id="land_330" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M296.474 239.313V233.681L301.359 230.865L306.249 233.687V239.313L301.359 242.135L296.474 239.313Z"/>
-<path id="land_331" class="land land-with-objects land-with-objects--midle" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M303.213 250.863V245.225L308.098 242.404L312.983 245.225V250.857L308.098 253.673L303.213 250.863Z"/>
+<path id="land_331" class="land land-interactive land-with-objects land-with-objects--midle" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M303.213 250.863V245.225L308.098 242.404L312.983 245.225V250.857L308.098 253.673L303.213 250.863Z"/>
 <path id="land_332" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M309.952 262.402V256.769L314.838 253.948L319.723 256.769V262.402L314.838 265.218L309.952 262.402Z"/>
 <path id="land_333" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M316.687 273.945V268.313L321.577 265.492L326.462 268.313V273.945L321.572 276.761L316.687 273.945Z"/>
 <path id="land_334" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M323.426 285.49V279.852L328.311 277.03L333.202 279.852V285.49L328.311 288.306L323.426 285.49Z"/>
@@ -1325,7 +1412,7 @@ const handleMobileMouseLeave = () => {
 <path id="land_364" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M316.687 250.857V245.225L321.577 242.409L326.462 245.225V250.857L321.572 253.673L316.687 250.857Z"/>
 <path id="land_365" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M323.426 262.402V256.769L328.311 253.948L330.748 255.359L333.202 256.769V262.402L328.311 265.218L323.426 262.402Z"/>
 <path id="land_366" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M330.16 273.945V268.313L335.05 265.492L339.935 268.308V273.945L335.05 276.761L330.16 273.945Z"/>
-<path id="land_367" class="land land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M336.899 285.484V279.857L341.79 277.036L346.675 279.857V285.484L341.79 288.306L336.899 285.484Z"/>
+<path id="land_367" class="land land-interactive land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M336.899 285.484V279.857L341.79 277.036L346.675 279.857V285.484L341.79 288.306L336.899 285.484Z"/>
 <path id="land_368" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M343.639 297.034V291.396L348.529 288.58L353.415 291.402V297.034L348.529 299.85L343.639 297.034Z"/>
 <path id="land_369" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M350.378 308.572V302.94L355.263 300.124L360.154 302.94V308.572L355.263 311.394L350.378 308.572Z"/>
 <path id="land_370" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M357.112 320.116V314.484L362.003 311.663L366.893 314.484V320.122L362.003 322.932L357.112 320.116Z"/>
@@ -1350,7 +1437,7 @@ const handleMobileMouseLeave = () => {
 <path id="land_389" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M309.952 216.225V210.593L314.838 207.777L319.723 210.593V216.225L314.838 219.047L309.952 216.225Z"/>
 <path id="land_390" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M316.687 227.769V222.143L321.577 219.321L326.462 222.143V227.769L321.572 230.591L316.687 227.769Z"/>
 <path id="land_391" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M323.426 239.313V233.681L328.311 230.865L333.202 233.681V239.313L328.311 242.141L323.426 239.313Z"/>
-<path id="land_392" class="land land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M330.16 250.857V245.225L332.608 243.809L335.05 242.404L339.935 245.225V250.857L335.05 253.673L330.16 250.857Z"/>
+<path id="land_392" class="land land-interactive land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M330.16 250.857V245.225L332.608 243.809L335.05 242.404L339.935 245.225V250.857L335.05 253.673L330.16 250.857Z"/>
 <path id="land_393" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M336.899 262.396V256.769L341.79 253.948L346.675 256.769V262.396L341.79 265.218L336.899 262.396Z"/>
 <path id="land_394" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M343.639 273.945V268.313L348.529 265.492L353.415 268.313V273.945L348.529 276.761L343.639 273.945Z"/>
 <path id="land_395" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M350.378 285.484V279.857L355.263 277.036L360.154 279.852V285.49L355.263 288.306L350.378 285.484Z"/>
@@ -1378,7 +1465,7 @@ const handleMobileMouseLeave = () => {
 <path id="land_417" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M323.426 216.225V210.593L328.311 207.777L333.202 210.593V216.225L328.311 219.047L323.426 216.225Z"/>
 <path id="land_418" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M330.16 227.769V222.143L332.608 220.726L335.05 219.321L339.935 222.137V227.775L335.05 230.591L330.16 227.769Z"/>
 <path id="land_419" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M336.899 239.313V233.681L341.79 230.865L346.675 233.681V239.313L341.79 242.135L336.899 239.313Z"/>
-<path id="land_420" class="land land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M343.639 250.857V245.225L348.529 242.404L353.415 245.225V250.857L348.529 253.673L343.639 250.857Z"/>
+<path id="land_420" class="land land-interactive land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M343.639 250.857V245.225L348.529 242.404L353.415 245.225V250.857L348.529 253.673L343.639 250.857Z"/>
 <path id="land_421" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M350.378 262.396V256.769L355.263 253.948L360.154 256.769V262.402L355.263 265.218L350.378 262.396Z"/>
 <path id="land_422" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M357.112 273.945V268.313L362.003 265.492L366.893 268.313V273.945L362.003 276.761L357.112 273.945Z"/>
 <path id="land_423" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M363.857 285.49V279.852L368.742 277.036L373.627 279.852V285.49L368.742 288.306L363.857 285.49Z"/>
@@ -1428,7 +1515,7 @@ const handleMobileMouseLeave = () => {
 <path id="land_467" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M336.899 193.137V187.51L341.79 184.689L346.675 187.51V193.137L341.79 195.958L336.899 193.137Z"/>
 <path id="land_468" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M343.639 204.686V199.054L348.529 196.233L353.415 199.054V204.686L348.529 207.503L343.639 204.686Z"/>
 <path id="land_469" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M350.378 216.225V210.599L355.263 207.777L360.154 210.599V216.225L355.263 219.047L350.378 216.225Z"/>
-<path id="land_470" class="land land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M357.112 227.769V222.143L362.003 219.321L366.893 222.137V227.775L362.003 230.591L357.112 227.769Z"/>
+<path id="land_470" class="land land-interactive land-with-objects land-with-objects--low" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M357.112 227.769V222.143L362.003 219.321L366.893 222.137V227.775L362.003 230.591L357.112 227.769Z"/>
 <path id="land_471" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M363.857 239.313V233.681L368.742 230.865L373.627 233.681V239.313L368.742 242.141L363.857 239.313Z"/>
 <path id="land_472" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M370.591 250.857V245.225L375.481 242.404L380.366 245.225V250.857L375.481 253.673L370.591 250.857Z"/>
 <path id="land_473" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M377.33 262.396V256.769L382.215 253.948L387.106 256.769V262.402L382.215 265.218L377.33 262.396Z"/>
@@ -2658,59 +2745,129 @@ const handleMobileMouseLeave = () => {
 
                     <div
                         v-if="mapPopup.visible"
-                        class="map-popup"
-                        :style="{ left: mapPopup.x + 'px', top: mapPopup.y + 'px' }"
+                        class="map-popup-hover-zone"
+                        :style="{ left: mapPopup.x - 14 + 'px', top: mapPopup.y - 14 + 'px' }"
                         @mouseenter="cancelHideMapPopup"
-                        @mouseleave="hideMapPopup"
+                        @mouseleave="scheduleHideMapPopup"
+                        @click="openMapDetailsPopup()"
+                        role="button"
+                        tabindex="0"
+                        @keydown.enter.prevent="openMapDetailsPopup()"
+                        @keydown.space.prevent="openMapDetailsPopup()"
                     >
-                        <p v-if="mapPopup.title" class="map-popup-title">{{ mapPopup.title }}</p>
-                        <div class="map-popup-logos">
-                            <Link
-                                v-for="project in mapPopup.projects"
-                                :key="project.id"
-                                :href="route('portfolio.show', project.slug)"
-                                class="map-popup-logo-link"
-                                :title="project.title"
-                            >
+                        <div class="map-popup map-popup--hover map-popup-trigger">
+                            <div class="map-popup-hover-title-row">
                                 <img
-                                    :src="project.logo_image"
-                                    :alt="project.title"
-                                    class="map-popup-logo"
+                                    v-if="mapPopup.hoverImage"
+                                    :src="mapPopup.hoverImage"
+                                    alt="Флаг"
+                                    class="map-popup-flag"
                                 />
-                            </Link>
+                                <span v-if="mapPopup.title" class="map-popup-title-button">
+                                    {{ mapPopup.title }}
+                                </span>
+                            </div>
+                            <p class="map-popup-count">{{ mapPopup.projectCountLabel }}</p>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="mapDetailsPopup.visible"
+                        class="map-popup-overlay"
+                        @click.self="closeMapDetailsPopup"
+                    >
+                        <div class="map-popup-dialog">
+                            <div class="map-popup-dialog-header">
+                                <p class="map-popup-dialog-title">{{ mapDetailsPopup.title }}</p>
+                                <button
+                                    type="button"
+                                    class="map-popup-close"
+                                    @click="closeMapDetailsPopup"
+                                    aria-label="Закрыть popup"
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            <div class="map-popup-projects-list">
+                                <div
+                                    v-for="project in mapDetailsPopup.projects"
+                                    :key="project.id"
+                                    class="map-popup-project-row"
+                                >
+                                    <Link
+                                        :href="route('portfolio.show', project.slug)"
+                                        class="map-popup-logo-link"
+                                        :title="project.title"
+                                    >
+                                        <img
+                                            :src="project.logo_image"
+                                            :alt="project.title"
+                                            class="map-popup-logo"
+                                        />
+                                    </Link>
+
+                                    <div class="map-popup-properties" v-if="project.properties?.length">
+                                        <span
+                                            v-for="property in project.properties"
+                                            :key="`${project.id}-${property}`"
+                                            class="map-popup-property-tag"
+                                        >
+                                            {{ property }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                 </div>
 
-                <div class="mt-10 flex justify-center gap-8 text-2xl font-semibold sm:text-[32px]">
-                    <span class="text-gray-400">Россия</span>
-                    <span>Европа</span>
-                </div>
+                
             </section>
 
             <section class="mx-auto max-w-6xl px-4 pb-28 sm:px-6 lg:px-8" id="projects">
-                <div class="grid gap-x-6 gap-y-8 md:grid-cols-2">
-                    <article v-for="project in projectCards" :key="project.title" class="overflow-hidden rounded-xl">
-                        <div class="aspect-[16/9] rounded-xl bg-gradient-to-br" :class="project.tone" />
-                        <h3 class="mt-3 text-2xl font-semibold leading-tight sm:text-[36px]">{{ project.title }}</h3>
-                    </article>
+                <div class=" flex justify-center gap-8 text-2xl font-semibold sm:text-[32px] country-switcher mb-[50px]">
+                    <button
+                        type="button"
+                        class="country-switcher-button"
+                        :class="activeCountry === 'russia' ? 'is-active' : 'is-inactive'"
+                        @click="activeCountry = 'russia'"
+                    >
+                        Россия
+                    </button>
+                    <button
+                        type="button"
+                        class="country-switcher-button"
+                        :class="activeCountry === 'world' ? 'is-active' : 'is-inactive'"
+                        @click="activeCountry = 'world'"
+                    >
+                        Европа
+                    </button>
                 </div>
-
-                <div v-if="featuredProjects.length > 0" class="mt-14 border-t border-gray-300 pt-10">
-                    <h3 class="mb-4 text-xl font-semibold tracking-[-0.01em] sm:text-2xl">Живые кейсы из БД</h3>
-                    <div class="grid gap-5 md:grid-cols-3">
-                        <article v-for="project in featuredProjects" :key="project.id" class="overflow-hidden rounded-lg bg-white shadow-sm">
-                            <img v-if="project.thumbnail_url" :src="project.thumbnail_url" :alt="project.title" class="h-36 w-full object-cover" />
-                            <div class="p-4">
-                                <h4 class="text-base font-semibold">{{ project.title }}</h4>
-                                <Link :href="route('portfolio.show', project.slug)" class="mt-2 inline-flex text-sm font-medium text-gray-700 hover:text-gray-900">
-                                    Открыть кейс
-                                </Link>
+                <div class="grid gap-x-6 gap-y-8 md:grid-cols-2 project-cards">
+                    <article v-for="project in filteredProjectsCards" :key="project.id" class="overflow-hidden rounded-xl">
+                        <Link :href="route('portfolio.show', project.slug)" class="block">
+                            <div class="card-preview aspect-[16/9] overflow-hidden rounded-xl bg-gray-100">
+                                <img
+                                    v-if="project.desktop_mockup_image || project.thumbnail_url"
+                                    :src="project.desktop_mockup_image || project.thumbnail_url"
+                                    :alt="project.title"
+                                    class="card-preview-image"
+                                />
+                                <div v-else class="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300 text-sm font-medium text-gray-600">
+                                    {{ project.title }}
+                                </div>
                             </div>
-                        </article>
+                            <h3 class="mt-6 text-2xl font-semibold leading-tight sm:text-[32px]">{{ project.title }}</h3>
+                        </Link>
+                    </article>
+                    <div v-if="filteredProjectsCards.length === 0" class="md:col-span-2 rounded-xl border border-dashed border-gray-300 p-10 text-center text-base text-gray-500">
+                        Для выбранного региона проекты пока не добавлены.
                     </div>
                 </div>
+
+                
             </section>
 
             <section class="mx-auto max-w-6xl px-4 pb-32 sm:px-6 lg:px-8" id="contacts">
@@ -2751,15 +2908,15 @@ const handleMobileMouseLeave = () => {
     fill: #777777;
 }
 
-.land-with-objects {
+.land-interactive {
     cursor: pointer;
     transition: transform 0.18s ease;
     transform-box: fill-box;
     transform-origin: center;
 }
 
-.land-with-objects:hover {
-    transform: scale(1.5);
+.land-interactive:hover {
+    transform: scale(1.08);
 }
 
 .land-with-objects--low {
@@ -2774,18 +2931,13 @@ const handleMobileMouseLeave = () => {
     fill: #FB6149;
 }
 
-.land-with-project {
-    cursor: pointer;
-}
-
 .map-popup {
     position: absolute;
     z-index: 30;
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-width: 260px;
-    padding: 8px;
+    align-items: center;
+    gap: 30px;
+    padding: 30px;
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.96);
@@ -2793,12 +2945,69 @@ const handleMobileMouseLeave = () => {
     backdrop-filter: blur(4px);
 }
 
+.map-popup-hover-zone {
+    position: absolute;
+    z-index: 30;
+    padding: 14px;
+    cursor: pointer;
+}
+
+.map-popup--hover {
+    position: relative;
+    min-width: 160px;
+    padding: 30x;
+    gap: 30px;
+}
+
+.map-popup-hover-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.map-popup-flag {
+    width: 22px;
+    height: 20px;
+    border-radius: 9999px;
+    object-fit: inherit;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    flex-shrink: 0;
+}
+
 .map-popup-title {
     margin: 0;
-    font-size: 14px;
+    font-size: 24px;
     font-weight: 700;
     line-height: 1.2;
-    color: #111827;
+    color: #333333;
+}
+
+.map-popup-title-button {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #333333;
+    text-align: left;
+}
+
+.map-popup-trigger {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.map-popup-trigger:hover {
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+}
+
+
+.map-popup-count {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.3;
+    color: #4b5563;
 }
 
 .map-popup-logos {
@@ -2806,6 +3015,89 @@ const handleMobileMouseLeave = () => {
     gap: 8px;
     align-items: center;
     flex-wrap: wrap;
+}
+
+.map-popup-projects-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.map-popup-project-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.map-popup-properties {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.map-popup-property-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 9999px;
+    background: #f3f4f6;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #374151;
+}
+
+.map-popup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(17, 24, 39, 0.45);
+}
+
+.map-popup-dialog {
+    width: min(100%, 420px);
+    padding: 30px;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+}
+
+.map-popup-dialog-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.map-popup-dialog-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #111827;
+}
+
+.map-popup-close {
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 9999px;
+    background: #f3f4f6;
+    color: #111827;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.map-popup-close:hover {
+    background: #e5e7eb;
+    transform: scale(1.04);
 }
 
 .map-popup-logo-link {
@@ -2830,6 +3122,40 @@ const handleMobileMouseLeave = () => {
     width: 100%;
     height: 100%;
     object-fit: contain;
+}
+
+.card-preview {
+    position: relative;
+}
+
+.card-preview-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    transition: transform 0.3s ease;
+}
+
+.card-preview:hover .card-preview-image {
+    transform: scale(1.02);
+}
+
+.country-switcher-button {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.country-switcher-button.is-active {
+    color: #111827;
+}
+
+.country-switcher-button.is-inactive {
+    color: #9ca3af;
 }
 
 .scroll-image {
