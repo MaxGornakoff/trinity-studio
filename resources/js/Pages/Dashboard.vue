@@ -38,6 +38,9 @@ defineProps({
                         <Link :href="route('admin.portfolio-projects.index')" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
                             Перейти к проектам
                         </Link>
+                        <Link :href="route('admin.map-popup-locations.edit')" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                            Popup карты
+                        </Link>
                         <Link :href="route('portfolio.index')" target="_blank" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                             Открыть портфолио
                         </Link>

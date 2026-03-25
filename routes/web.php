@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Admin\MapPopupLocationController;
 use App\Http\Controllers\Admin\PortfolioProjectController;
 use App\Http\Controllers\PortfolioController;
+use App\Models\MapPopupLocation;
 use App\Models\PortfolioProject;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -31,15 +33,32 @@ Route::get('/', function () {
             ->where('show_in_slider', true)
             ->orderBy('order_column')
             ->get();
+
+        $mapProjects = PortfolioProject::query()
+            ->where('is_published', true)
+            ->whereNotNull('map_land_id')
+            ->whereNotNull('logo_image')
+            ->select(['id', 'title', 'slug', 'map_land_id', 'logo_image'])
+            ->orderBy('order_column')
+            ->get();
+
+        $mapPopupTitles = MapPopupLocation::query()
+            ->orderBy('sort_order')
+            ->pluck('title', 'land_id')
+            ->all();
     } catch (\Throwable $exception) {
         $featuredProjects = [];
         $sliderProjects = [];
+        $mapProjects = [];
+        $mapPopupTitles = [];
     }
 
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'featuredProjects' => $featuredProjects,
         'sliderProjects' => $sliderProjects,
+        'mapProjects' => $mapProjects,
+        'mapPopupTitles' => $mapPopupTitles,
     ]);
 })->name('home');
 
@@ -66,6 +85,8 @@ Route::get('/dashboard', function () {
 
 Route::middleware(['auth', 'admin.email'])->prefix('admin')->name('admin.')->group(function () {
     Route::resource('portfolio-projects', PortfolioProjectController::class)->except(['show']);
+    Route::get('map-popup-locations', [MapPopupLocationController::class, 'edit'])->name('map-popup-locations.edit');
+    Route::put('map-popup-locations', [MapPopupLocationController::class, 'update'])->name('map-popup-locations.update');
 });
 
 require __DIR__.'/auth.php';

@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 
 const slideContentRef = ref(null);
 const scrollImageRef = ref(null);
@@ -24,6 +24,15 @@ const isPreloadLagging = ref(false);
 
 const desktopContainerRef = ref(null);
 const mobileContainerRef = ref(null);
+const mapContainerRef = ref(null);
+
+const mapPopup = ref({
+    visible: false,
+    x: 0,
+    y: 0,
+    title: '',
+    projects: [],
+});
 
 const TRANSITION_MS = 600;
 const PRELOAD_MAX_WAIT_MS = 350;
@@ -124,7 +133,84 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    mapProjects: {
+        type: Array,
+        default: () => [],
+    },
+    mapPopupTitles: {
+        type: Object,
+        default: () => ({}),
+    },
 });
+
+const mapProjectsByLand = props.mapProjects.reduce((acc, project) => {
+    if (!project.map_land_id) {
+        return acc;
+    }
+
+    if (!acc[project.map_land_id]) {
+        acc[project.map_land_id] = [];
+    }
+
+    acc[project.map_land_id].push(project);
+    return acc;
+}, {});
+
+const showMapPopup = (landId, event) => {
+    cancelHideMapPopup();
+
+    const projects = mapProjectsByLand[landId] || [];
+    if (!projects.length || !mapContainerRef.value) {
+        mapPopup.value.visible = false;
+        return;
+    }
+
+    const rect = mapContainerRef.value.getBoundingClientRect();
+
+    mapPopup.value = {
+        visible: true,
+        x: event.clientX - rect.left + 12,
+        y: event.clientY - rect.top + 12,
+        title: props.mapPopupTitles[landId] || '',
+        projects,
+    };
+};
+
+const moveMapPopup = (event) => {
+    if (!mapPopup.value.visible || !mapContainerRef.value) {
+        return;
+    }
+
+    const rect = mapContainerRef.value.getBoundingClientRect();
+    mapPopup.value.x = event.clientX - rect.left + 12;
+    mapPopup.value.y = event.clientY - rect.top + 12;
+};
+
+const hideMapPopup = () => {
+    mapPopup.value.visible = false;
+};
+
+const handleResize = () => {
+    calculateScrollOffset();
+    calculateScrollOffsetMobile();
+};
+
+let cleanupMapListeners = () => {};
+let mapPopupHideTimer = null;
+
+const cancelHideMapPopup = () => {
+    if (mapPopupHideTimer) {
+        clearTimeout(mapPopupHideTimer);
+        mapPopupHideTimer = null;
+    }
+};
+
+const scheduleHideMapPopup = () => {
+    cancelHideMapPopup();
+    mapPopupHideTimer = setTimeout(() => {
+        hideMapPopup();
+    }, 120);
+};
 
 // tabs state
 const activeTab = ref('services');
@@ -528,12 +614,40 @@ onMounted(() => {
     applyCurrentSlide(0);
     calculateScrollOffset();
     calculateScrollOffsetMobile();
-    
-    // Пересчитываем при изменении размера окна
-    window.addEventListener('resize', () => {
-        calculateScrollOffset();
-        calculateScrollOffsetMobile();
+
+    window.addEventListener('resize', handleResize);
+
+    const mapListenersCleanup = [];
+    Object.keys(mapProjectsByLand).forEach((landId) => {
+        const landEl = document.getElementById(landId);
+        if (!landEl) {
+            return;
+        }
+
+        const handleEnter = (event) => showMapPopup(landId, event);
+        const handleMove = (event) => moveMapPopup(event);
+
+        landEl.classList.add('land-with-project');
+        landEl.addEventListener('mouseenter', handleEnter);
+        landEl.addEventListener('mousemove', handleMove);
+        landEl.addEventListener('mouseleave', scheduleHideMapPopup);
+
+        mapListenersCleanup.push(() => {
+            landEl.removeEventListener('mouseenter', handleEnter);
+            landEl.removeEventListener('mousemove', handleMove);
+            landEl.removeEventListener('mouseleave', scheduleHideMapPopup);
+        });
     });
+
+    cleanupMapListeners = () => {
+        mapListenersCleanup.forEach((cleanup) => cleanup());
+    };
+});
+
+onUnmounted(() => {
+    cancelHideMapPopup();
+    window.removeEventListener('resize', handleResize);
+    cleanupMapListeners();
 });
 
 const handleSliderMouseEnter = () => {
@@ -547,6 +661,7 @@ const handleSliderMouseEnter = () => {
             const element = scrollImageMobileRef.value;
             const currentY = getTranslateY(element);
             const duration = 1000;
+            const startTime = Date.now();
             
             const animate = () => {
                 const elapsed = Date.now() - startTime;
@@ -578,6 +693,8 @@ const handleSliderMouseLeave = () => {
         
         // Получаем текущее значение translateY
         const currentY = getTranslateY(element);
+        const duration = 1000;
+        const startTime = Date.now();
         
         const animate = () => {
             const elapsed = Date.now() - startTime;
@@ -611,6 +728,7 @@ const handleMobileMouseEnter = () => {
             const element = scrollImageRef.value;
             const currentY = getTranslateY(element);
             const duration = 1000;
+            const startTime = Date.now();
             
             const animate = () => {
                 const elapsed = Date.now() - startTime;
@@ -642,6 +760,8 @@ const handleMobileMouseLeave = () => {
         
         // Получаем текущее значение translateY
         const currentY = getTranslateY(element);
+        const duration = 1000;
+        const startTime = Date.now();
         
         const animate = () => {
             const elapsed = Date.now() - startTime;
@@ -837,7 +957,7 @@ const handleMobileMouseLeave = () => {
                     </p>
                 </div>
 
-                <div class="map">
+                <div ref="mapContainerRef" class="map relative">
                     <svg width="1007" height="473" viewBox="0 0 1007 473" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path id="land_1" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M6.7394 297.034V291.402L11.6246 288.58L14.0671 289.985L16.5153 291.402V297.028L11.6246 299.85L6.7394 297.034Z"/>
 <path id="land_2" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M0 262.402V256.769L4.8907 253.948L9.7758 256.769V262.402L4.8907 265.218L0 262.402Z"/>
@@ -2536,6 +2656,31 @@ const handleMobileMouseLeave = () => {
 <path id="land_1695" class="land" ref="landRef" fill-rule="evenodd" clip-rule="evenodd" d="M997.224 77.7071V72.0807L1002.11 69.2534L1007 72.0807V77.7071L1004.55 79.118L1002.11 80.5288L997.224 77.7071Z"/>
                     </svg>
 
+                    <div
+                        v-if="mapPopup.visible"
+                        class="map-popup"
+                        :style="{ left: mapPopup.x + 'px', top: mapPopup.y + 'px' }"
+                        @mouseenter="cancelHideMapPopup"
+                        @mouseleave="hideMapPopup"
+                    >
+                        <p v-if="mapPopup.title" class="map-popup-title">{{ mapPopup.title }}</p>
+                        <div class="map-popup-logos">
+                            <Link
+                                v-for="project in mapPopup.projects"
+                                :key="project.id"
+                                :href="route('portfolio.show', project.slug)"
+                                class="map-popup-logo-link"
+                                :title="project.title"
+                            >
+                                <img
+                                    :src="project.logo_image"
+                                    :alt="project.title"
+                                    class="map-popup-logo"
+                                />
+                            </Link>
+                        </div>
+                    </div>
+
                 </div>
 
                 <div class="mt-10 flex justify-center gap-8 text-2xl font-semibold sm:text-[32px]">
@@ -2627,6 +2772,64 @@ const handleMobileMouseLeave = () => {
 
 .land-with-objects--hight {
     fill: #FB6149;
+}
+
+.land-with-project {
+    cursor: pointer;
+}
+
+.map-popup {
+    position: absolute;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 260px;
+    padding: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(4px);
+}
+
+.map-popup-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #111827;
+}
+
+.map-popup-logos {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.map-popup-logo-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    padding: 6px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #ffffff;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.map-popup-logo-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.map-popup-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 .scroll-image {

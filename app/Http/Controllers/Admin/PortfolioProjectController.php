@@ -31,7 +31,9 @@ class PortfolioProjectController extends Controller
      */
     public function create()
     {
-        return Inertia::render('Admin/PortfolioProjects/Create');
+        return Inertia::render('Admin/PortfolioProjects/Create', [
+            'propertiesOptions' => config('portfolio.project_properties', []),
+        ]);
     }
 
     /**
@@ -63,9 +65,21 @@ class PortfolioProjectController extends Controller
             $data['mobile_mockup_image'] = '/storage/' . $path;
         }
 
+        // Обработка загрузки логотипа проекта
+        if ($request->hasFile('logo_image')) {
+            $file = $request->file('logo_image');
+            $filename = $data['slug'] . '-logo.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('logos', $filename, 'public');
+            $data['logo_image'] = '/storage/' . $path;
+        }
+
         $data['is_featured'] = (bool) ($data['is_featured'] ?? false);
         $data['is_published'] = (bool) ($data['is_published'] ?? false);
         $data['show_in_slider'] = (bool) ($data['show_in_slider'] ?? false);
+        $data['properties'] = array_values($data['properties'] ?? []);
+        $data['map_land_id'] = isset($data['map_land_id']) && trim((string) $data['map_land_id']) !== ''
+            ? trim((string) $data['map_land_id'])
+            : null;
 
         PortfolioProject::create($data);
 
@@ -89,6 +103,7 @@ class PortfolioProjectController extends Controller
     {
         return Inertia::render('Admin/PortfolioProjects/Edit', [
             'project' => $portfolioProject,
+            'propertiesOptions' => config('portfolio.project_properties', []),
         ]);
     }
 
@@ -98,6 +113,8 @@ class PortfolioProjectController extends Controller
     public function update(UpdatePortfolioProjectRequest $request, PortfolioProject $portfolioProject)
     {
         $data = $request->validated();
+
+        unset($data['desktop_mockup_image'], $data['mobile_mockup_image'], $data['logo_image']);
 
         if (empty($data['slug'])) {
             // Транслитерация кириллицы в латиницу перед созданием slug
@@ -133,9 +150,27 @@ class PortfolioProjectController extends Controller
             $data['mobile_mockup_image'] = '/storage/' . $path;
         }
 
+        // Обработка загрузки логотипа проекта
+        if ($request->hasFile('logo_image')) {
+            // Удаляем старый логотип
+            if ($portfolioProject->logo_image) {
+                $oldPath = str_replace('/storage/', '', $portfolioProject->logo_image);
+                Storage::disk('public')->delete($oldPath);
+            }
+
+            $file = $request->file('logo_image');
+            $filename = $data['slug'] . '-logo.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('logos', $filename, 'public');
+            $data['logo_image'] = '/storage/' . $path;
+        }
+
         $data['is_featured'] = (bool) ($data['is_featured'] ?? false);
         $data['is_published'] = (bool) ($data['is_published'] ?? false);
         $data['show_in_slider'] = (bool) ($data['show_in_slider'] ?? false);
+        $data['properties'] = array_values($data['properties'] ?? []);
+        $data['map_land_id'] = isset($data['map_land_id']) && trim((string) $data['map_land_id']) !== ''
+            ? trim((string) $data['map_land_id'])
+            : null;
 
         $portfolioProject->update($data);
 
@@ -157,6 +192,11 @@ class PortfolioProjectController extends Controller
         
         if ($portfolioProject->mobile_mockup_image) {
             $path = str_replace('/storage/', '', $portfolioProject->mobile_mockup_image);
+            Storage::disk('public')->delete($path);
+        }
+
+        if ($portfolioProject->logo_image) {
+            $path = str_replace('/storage/', '', $portfolioProject->logo_image);
             Storage::disk('public')->delete($path);
         }
         

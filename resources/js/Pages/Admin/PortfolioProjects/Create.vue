@@ -7,6 +7,13 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
+const props = defineProps({
+    propertiesOptions: {
+        type: Array,
+        default: () => [],
+    },
+});
+
 const form = useForm({
     title: '',
     slug: '',
@@ -15,17 +22,30 @@ const form = useForm({
     thumbnail_url: '',
     desktop_mockup_image: null,
     mobile_mockup_image: null,
+    logo_image: null,
     project_url: '',
     order_column: '0',
     is_featured: false,
     is_published: false,
     show_in_slider: false,
     region: 'russia',
+    map_land_id: '',
+    properties: [],
     published_at: '',
 });
 
+const toggleProperty = (property) => {
+    if (form.properties.includes(property)) {
+        form.properties = form.properties.filter((item) => item !== property);
+        return;
+    }
+
+    form.properties = [...form.properties, property];
+};
+
 const desktopPreview = ref(null);
 const mobilePreview = ref(null);
+const logoPreview = ref(null);
 
 // Функция транслитерации
 const transliterate = (text) => {
@@ -77,6 +97,18 @@ const handleMobileImageChange = (event) => {
     }
 };
 
+const handleLogoImageChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+        form.logo_image = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            logoPreview.value = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+};
+
 const removeDesktopImage = () => {
     form.desktop_mockup_image = null;
     desktopPreview.value = null;
@@ -85,6 +117,11 @@ const removeDesktopImage = () => {
 const removeMobileImage = () => {
     form.mobile_mockup_image = null;
     mobilePreview.value = null;
+};
+
+const removeLogoImage = () => {
+    form.logo_image = null;
+    logoPreview.value = null;
 };
 
 const submit = () => {
@@ -179,6 +216,42 @@ const submit = () => {
                     </div>
 
                     <div>
+                        <InputLabel for="map_land_id" value="ID точки на карте (например: land_44)" />
+                        <TextInput id="map_land_id" v-model="form.map_land_id" type="text" class="mt-1 block w-full" />
+                        <p class="mt-1 text-xs text-gray-500">Укажи id path из карты главной страницы в формате land_число.</p>
+                        <InputError class="mt-2" :message="form.errors.map_land_id" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="logo_image" value="Логотип проекта" />
+                        <input
+                            id="logo_image"
+                            type="file"
+                            accept="image/*"
+                            @change="handleLogoImageChange"
+                            class="mt-1 block w-full text-sm text-gray-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-md file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-gray-900 file:text-white
+                                hover:file:bg-gray-800
+                                cursor-pointer"
+                        />
+                        <InputError class="mt-2" :message="form.errors.logo_image" />
+
+                        <div v-if="logoPreview" class="mt-4 relative inline-block">
+                            <img :src="logoPreview" alt="Logo preview" class="max-h-[140px] w-auto rounded-lg border border-gray-300 object-contain bg-white p-2" />
+                            <button
+                                type="button"
+                                @click="removeLogoImage"
+                                class="absolute -top-2 -right-2 rounded-full bg-red-500 text-white w-6 h-6 flex items-center justify-center hover:bg-red-600"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
                         <InputLabel for="summary" value="Краткое описание" />
                         <textarea id="summary" v-model="form.summary" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" rows="3" />
                         <InputError class="mt-2" :message="form.errors.summary" />
@@ -198,7 +271,7 @@ const submit = () => {
                         </div>
 
                         <div>
-                            <InputLabel for="project_url" value="URL проекта" />
+                            <InputLabel for="project_url" value="Ссылка на сайт проекта" />
                             <TextInput id="project_url" v-model="form.project_url" type="url" class="mt-1 block w-full" />
                             <InputError class="mt-2" :message="form.errors.project_url" />
                         </div>
@@ -246,6 +319,26 @@ const submit = () => {
                             </label>
                         </div>
                         <InputError class="mt-2" :message="form.errors.region" />
+                    </div>
+
+                    <div>
+                        <InputLabel value="Свойства проекта (теги)" />
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <button
+                                v-for="property in props.propertiesOptions"
+                                :key="property"
+                                type="button"
+                                @click="toggleProperty(property)"
+                                class="rounded-full border px-3 py-1 text-sm transition"
+                                :class="form.properties.includes(property)
+                                    ? 'border-gray-900 bg-gray-900 text-white'
+                                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'"
+                            >
+                                {{ property }}
+                            </button>
+                        </div>
+                        <InputError class="mt-2" :message="form.errors.properties" />
+                        <InputError class="mt-1" :message="form.errors['properties.0']" />
                     </div>
 
                     <div class="flex items-center gap-4">

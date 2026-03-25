@@ -38,6 +38,12 @@ const showingNavigationDropdown = ref(false);
                                 >
                                     Portfolio
                                 </NavLink>
+                                <NavLink
+                                    :href="route('admin.map-popup-locations.edit')"
+                                    :active="route().current('admin.map-popup-locations.*')"
+                                >
+                                    Popup карты
+                                </NavLink>
                             </div>
                         </div>
 
@@ -125,6 +131,12 @@ const showingNavigationDropdown = ref(false);
                             :active="route().current('admin.portfolio-projects.*')"
                         >
                             Portfolio
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('admin.map-popup-locations.edit')"
+                            :active="route().current('admin.map-popup-locations.*')"
+                        >
+                            Popup карты
                         </ResponsiveNavLink>
                     </div>
 

@@ -23,6 +23,9 @@ class PortfolioProject extends Model
         'is_published',
         'show_in_slider',
         'region',
+        'properties',
+        'map_land_id',
+        'logo_image',
         'published_at',
     ];
 
@@ -30,6 +33,7 @@ class PortfolioProject extends Model
         'is_featured' => 'boolean',
         'is_published' => 'boolean',
         'show_in_slider' => 'boolean',
+        'properties' => 'array',
         'published_at' => 'datetime',
     ];
 }
