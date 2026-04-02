@@ -168,6 +168,37 @@ const filteredProjectsCards = computed(() =>
     })
 );
 
+const updateProjectCardPreviewShift = (cardElement) => {
+    const previewElement = cardElement?.querySelector('.card-preview');
+    const imageElement = cardElement?.querySelector('.card-preview-image');
+
+    if (!previewElement || !imageElement) {
+        return;
+    }
+
+    const overflow = Math.max(imageElement.offsetHeight - previewElement.offsetHeight, 0);
+    previewElement.style.setProperty('--card-preview-shift', `-${overflow}px`);
+};
+
+const handleProjectCardEnter = (event) => {
+    const cardElement = event.currentTarget;
+    updateProjectCardPreviewShift(cardElement);
+    cardElement.classList.add('is-hovered');
+};
+
+const handleProjectCardLeave = (event) => {
+    event.currentTarget.classList.remove('is-hovered');
+};
+
+const handleProjectCardImageLoad = (event) => {
+    const cardElement = event.currentTarget.closest('.project-card');
+    if (!cardElement) {
+        return;
+    }
+
+    updateProjectCardPreviewShift(cardElement);
+};
+
 const mapProjectsByLand = computed(() =>
     filteredMapProjects.value.reduce((acc, project) => {
         if (!project.map_land_id) {
@@ -319,18 +350,18 @@ const handleServicesMouseMove = (e) => {
     const rect = servicesContainerRef.value.getBoundingClientRect();
     spotlightX.value = e.clientX - rect.left;
     spotlightY.value = e.clientY - rect.top;
-    
+
     // Apply light text effect to elements under spotlight
     const cards = servicesContainerRef.value.querySelectorAll('.service-card');
     cards.forEach(card => {
         const cardRect = card.getBoundingClientRect();
         const cardX = cardRect.left - rect.left + cardRect.width / 2;
         const cardY = cardRect.top - rect.top + cardRect.height / 2;
-        
+
         // Apply gradient with light text under spotlight, white text outside
         const gradX = spotlightX.value;
         const gradY = spotlightY.value;
-        
+
         card.style.setProperty('--grad-x', gradX + 'px');
         card.style.setProperty('--grad-y', gradY + 'px');
     });
@@ -674,7 +705,7 @@ const calculateScrollOffset = () => {
         if (slideContentRef.value && scrollImageRef.value) {
             const containerHeight = slideContentRef.value.offsetHeight;
             const imageHeight = scrollImageRef.value.offsetHeight;
-            
+
             if (imageHeight > containerHeight) {
                 const offset = ((imageHeight - containerHeight) / imageHeight) * 100;
                 scrollOffset.value = offset;
@@ -688,7 +719,7 @@ const calculateScrollOffsetMobile = () => {
         if (slideContentMobileRef.value && scrollImageMobileRef.value) {
             const containerHeight = slideContentMobileRef.value.offsetHeight;
             const imageHeight = scrollImageMobileRef.value.offsetHeight;
-            
+
             if (imageHeight > containerHeight) {
                 const offset = ((imageHeight - containerHeight) / imageHeight) * 100;
                 scrollOffsetMobile.value = offset;
@@ -739,33 +770,33 @@ onUnmounted(() => {
 
 const handleSliderMouseEnter = () => {
     isSliderHovered.value = true;
-    
+
     // Останавливаем анимацию мобильного элемента
     if (isMobileHovered.value) {
         isMobileHovered.value = false;
-        
+
         if (scrollImageMobileRef.value) {
             const element = scrollImageMobileRef.value;
             const currentY = getTranslateY(element);
             const duration = 1000;
             const startTime = Date.now();
-            
+
             const animate = () => {
                 const elapsed = Date.now() - startTime;
                 const progress = Math.min(elapsed / duration, 1);
-                
+
                 const easeProgress = 1 - Math.pow(1 - progress, 3);
-                
+
                 const newY = currentY + (0 - currentY) * easeProgress;
                 element.style.transform = `translateY(${newY}px)`;
-                
+
                 if (progress < 1) {
                     requestAnimationFrame(animate);
                 } else {
                     element.style.transform = 'translateY(0)';
                 }
             };
-            
+
             requestAnimationFrame(animate);
         }
     }
@@ -773,66 +804,66 @@ const handleSliderMouseEnter = () => {
 
 const handleSliderMouseLeave = () => {
     isSliderHovered.value = false;
-    
+
     // Плавно возвращаем изображение в исходное положение
     if (scrollImageRef.value) {
         const element = scrollImageRef.value;
-        
+
         // Получаем текущее значение translateY
         const currentY = getTranslateY(element);
         const duration = 1000;
         const startTime = Date.now();
-        
+
         const animate = () => {
             const elapsed = Date.now() - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            
+
             // Используем ease-out кривую
             const easeProgress = 1 - Math.pow(1 - progress, 3);
-            
+
             const newY = currentY + (0 - currentY) * easeProgress;
             element.style.transform = `translateY(${newY}px)`;
-            
+
             if (progress < 1) {
                 requestAnimationFrame(animate);
             } else {
                 element.style.transform = 'translateY(0)';
             }
         };
-        
+
         requestAnimationFrame(animate);
     }
 };
 
 const handleMobileMouseEnter = () => {
     isMobileHovered.value = true;
-    
+
     // Останавливаем анимацию десктопного элемента
     if (isSliderHovered.value) {
         isSliderHovered.value = false;
-        
+
         if (scrollImageRef.value) {
             const element = scrollImageRef.value;
             const currentY = getTranslateY(element);
             const duration = 1000;
             const startTime = Date.now();
-            
+
             const animate = () => {
                 const elapsed = Date.now() - startTime;
                 const progress = Math.min(elapsed / duration, 1);
-                
+
                 const easeProgress = 1 - Math.pow(1 - progress, 3);
-                
+
                 const newY = currentY + (0 - currentY) * easeProgress;
                 element.style.transform = `translateY(${newY}px)`;
-                
+
                 if (progress < 1) {
                     requestAnimationFrame(animate);
                 } else {
                     element.style.transform = 'translateY(0)';
                 }
             };
-            
+
             requestAnimationFrame(animate);
         }
     }
@@ -840,33 +871,33 @@ const handleMobileMouseEnter = () => {
 
 const handleMobileMouseLeave = () => {
     isMobileHovered.value = false;
-    
+
     // Плавно возвращаем изображение в исходное положение
     if (scrollImageMobileRef.value) {
         const element = scrollImageMobileRef.value;
-        
+
         // Получаем текущее значение translateY
         const currentY = getTranslateY(element);
         const duration = 1000;
         const startTime = Date.now();
-        
+
         const animate = () => {
             const elapsed = Date.now() - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            
+
             // Используем ease-out кривую
             const easeProgress = 1 - Math.pow(1 - progress, 3);
-            
+
             const newY = currentY + (0 - currentY) * easeProgress;
             element.style.transform = `translateY(${newY}px)`;
-            
+
             if (progress < 1) {
                 requestAnimationFrame(animate);
             } else {
                 element.style.transform = 'translateY(0)';
             }
         };
-        
+
         requestAnimationFrame(animate);
     }
 };
@@ -888,15 +919,15 @@ const handleMobileMouseLeave = () => {
                     <a href="#about" class="hover:text-gray-900 text-[#333333] text-[16px]">О нас</a>
                 </nav>
 
-                
+
                     <a href="#contacts" class="rounded-full bg-[#333333] flex items-center font-normal pl-[25px] pr-[15px] py-[6px] text-[16px] text-white hover:bg-gray-700 gap-3">
                         <span class="block">Контакт</span>
                         <span class="icon w-[9px] h-[10px] block  min-w-[14px]">
                             <svg class="h-full w-full block"><use xlink:href="/images/sprite.svg#arrow"></use></svg>
                         </span>
                     </a>
-                    
-            
+
+
             </div>
         </header>
 
@@ -917,7 +948,7 @@ const handleMobileMouseLeave = () => {
                                 <img src="/images/nout_mockup.svg" alt="">
                             </div>
                             <Link :href="currentSlideLink" class="pointer slide-glint max-w-[864px] rounded-tr-[24px] w-[65%] h-[611px] overflow-hidden  absolute top-0 left-auto right-[102px] bg-[rgba(255,255,255,0.2)] z-999" style="clip-path: polygon(80% 0, 100% 0, 100% 100%, 0 100%)">
-                                
+
                             </Link>
                         </div>
                         <div ref="mobileContainerRef" class="mobile cursor-pointer absolute top-[133px] right-14 max-w-[308px] w-full h-[620px] flex items-center justify-center" :class="{ 'is-hovered': isMobileHovered }" :style="{ '--scroll-offset-mobile': scrollOffsetMobile + '%' }" @mouseenter="handleMobileMouseEnter" @mouseleave="handleMobileMouseLeave">
@@ -942,7 +973,7 @@ const handleMobileMouseLeave = () => {
                         </div>
                         <div v-if="isPreloadLagging" class="preload-indicator" aria-hidden="true" />
                     </div>
-                
+
             </section>
 
             <section class="mx-auto max-w-6xl px-4 pb-28 sm:px-6 lg:px-8 pt-[180px]" id="services">
@@ -2823,7 +2854,7 @@ const handleMobileMouseLeave = () => {
 
                 </div>
 
-                
+
             </section>
 
             <section class="mx-auto max-w-6xl px-4 pb-28 sm:px-6 lg:px-8" id="projects">
@@ -2846,20 +2877,27 @@ const handleMobileMouseLeave = () => {
                     </button>
                 </div>
                 <div class="grid gap-x-6 gap-y-8 md:grid-cols-2 project-cards">
-                    <article v-for="project in filteredProjectsCards" :key="project.id" class="overflow-hidden rounded-xl">
-                        <Link :href="route('portfolio.show', project.slug)" class="block">
+                    <article
+                        v-for="project in filteredProjectsCards"
+                        :key="project.id"
+                        class="project-card rounded-xl"
+                        @mouseenter="handleProjectCardEnter"
+                        @mouseleave="handleProjectCardLeave"
+                    >
+                        <Link :href="route('portfolio.show', project.slug)" class="project-card-link block">
                             <div class="card-preview aspect-[16/9] overflow-hidden rounded-xl bg-gray-100">
                                 <img
                                     v-if="project.desktop_mockup_image || project.thumbnail_url"
                                     :src="project.desktop_mockup_image || project.thumbnail_url"
                                     :alt="project.title"
                                     class="card-preview-image"
+                                    @load="handleProjectCardImageLoad"
                                 />
                                 <div v-else class="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300 text-sm font-medium text-gray-600">
                                     {{ project.title }}
                                 </div>
                             </div>
-                            <h3 class="mt-6 text-2xl font-semibold leading-tight sm:text-[32px]">{{ project.title }}</h3>
+                            <h3 class="project-card-title mt-6 text-2xl font-semibold leading-tight sm:text-[32px]">{{ project.title }}</h3>
                         </Link>
                     </article>
                     <div v-if="filteredProjectsCards.length === 0" class="md:col-span-2 rounded-xl border border-dashed border-gray-300 p-10 text-center text-base text-gray-500">
@@ -2867,7 +2905,7 @@ const handleMobileMouseLeave = () => {
                     </div>
                 </div>
 
-                
+
             </section>
 
             <section class="mx-auto max-w-6xl px-4 pb-32 sm:px-6 lg:px-8" id="contacts">
@@ -3124,8 +3162,41 @@ const handleMobileMouseLeave = () => {
     object-fit: contain;
 }
 
+.project-card {
+    perspective: 1600px;
+    position: relative;
+    z-index: 0;
+}
+
+.project-card.is-hovered {
+    z-index: 10;
+}
+
+.project-card-link {
+    display: block;
+    transform-origin: center center;
+    transform-style: preserve-3d;
+    transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.project-card-title {
+    transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1), color 0.35s ease;
+}
+
+.project-card.is-hovered .project-card-link {
+    transform: perspective(1600px) rotateX(7deg) rotateY(-10deg) scale(1.04);
+}
+
+.project-card.is-hovered .project-card-title {
+    transform: translate3d(8px, -2px, 32px);
+    color: #111827;
+}
+
 .card-preview {
     position: relative;
+    --card-preview-shift: 0px;
+    transform-origin: center center;
+    transition: box-shadow 1.4s cubic-bezier(0.22, 1, 0.36, 1), transform 1.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .card-preview-image {
@@ -3134,11 +3205,19 @@ const handleMobileMouseLeave = () => {
     left: 0;
     width: 100%;
     height: auto;
-    transition: transform 0.3s ease;
+    transform: translate3d(0, 0, 0) scale(1);
+    transform-origin: top center;
+    will-change: transform;
+    transition: transform 10.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.card-preview:hover .card-preview-image {
-    transform: scale(1.02);
+.project-card.is-hovered .card-preview {
+    box-shadow: 0 30px 80px rgba(17, 24, 39, 0.18);
+    transform: translateZ(24px);
+}
+
+.project-card.is-hovered .card-preview-image {
+    transform: translate3d(0, var(--card-preview-shift), 0) scale(1.5);
 }
 
 .country-switcher-button {
