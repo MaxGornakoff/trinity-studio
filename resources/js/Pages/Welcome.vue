@@ -45,6 +45,37 @@ const mapDetailsPopup = ref({
 
 const TRANSITION_MS = 600;
 const PRELOAD_MAX_WAIT_MS = 350;
+const HOVER_SCROLL_DURATION_MS = 11000;
+const SCROLL_RESET_DURATION_MS = 1000;
+const REALISTIC_SCROLL_STOPS = [
+    { time: 0, position: 0 },
+    { time: 0.05, position: 0, easing: 'hold' },
+    { time: 0.12, position: 0.09, easing: 'wheel' },
+    { time: 0.18, position: 0.12, easing: 'drift' },
+    { time: 0.24, position: 0.12, easing: 'hold' },
+    { time: 0.32, position: 0.28, easing: 'wheel' },
+    { time: 0.38, position: 0.33, easing: 'drift' },
+    { time: 0.44, position: 0.33, easing: 'hold' },
+    { time: 0.54, position: 0.56, easing: 'wheel' },
+    { time: 0.60, position: 0.61, easing: 'drift' },
+    { time: 0.66, position: 0.61, easing: 'hold' },
+    { time: 0.76, position: 0.82, easing: 'wheel' },
+    { time: 0.82, position: 0.87, easing: 'drift' },
+    { time: 0.87, position: 0.87, easing: 'hold' },
+    { time: 0.96, position: 1, easing: 'wheel' },
+    { time: 1, position: 1, easing: 'hold' },
+];
+
+const scrollAnimationState = {
+    desktop: {
+        frameId: null,
+        currentY: 0,
+    },
+    mobile: {
+        frameId: null,
+        currentY: 0,
+    },
+};
 
 const services = [
     {
@@ -579,33 +610,249 @@ const preloadImage = (src) => new Promise((resolve) => {
     }
 });
 
-const getTranslateY = (element) => {
-    if (!element) {
-        return 0;
-    }
-
-    const matrix = window.getComputedStyle(element).transform;
-    if (!matrix || matrix === 'none') {
-        return 0;
-    }
-
-    const matches = matrix.match(/matrix3d?\((.+)\)/);
-    if (!matches || !matches[1]) {
-        return 0;
-    }
-
-    const matrixValues = matches[1].split(',').map((v) => v.trim());
-
-    if (matrix.startsWith('matrix3d(')) {
-        return parseFloat(matrixValues[13]) || 0;
-    }
-
-    return parseFloat(matrixValues[5]) || 0;
-};
-
 const wait = (ms) => new Promise((resolve) => {
     setTimeout(resolve, ms);
 });
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const easeOutPower = (progress, power) => 1 - Math.pow(1 - progress, power);
+
+const getSegmentEasedProgress = (segmentEasing, progress) => {
+    switch (segmentEasing) {
+        case 'hold':
+            return 1;
+        case 'wheel':
+            return easeOutPower(progress, 2.6);
+        case 'drift':
+            return easeOutPower(progress, 1.45);
+        default:
+            return progress;
+    }
+};
+
+const getSegmentRawProgress = (segmentEasing, easedProgress) => {
+    const clampedProgress = clamp(easedProgress, 0, 1);
+
+    switch (segmentEasing) {
+        case 'hold':
+            return 1;
+        case 'wheel':
+            return 1 - Math.pow(1 - clampedProgress, 1 / 2.6);
+        case 'drift':
+            return 1 - Math.pow(1 - clampedProgress, 1 / 1.45);
+        default:
+            return clampedProgress;
+    }
+};
+
+const getScrollElements = (target) => {
+    if (target === 'desktop') {
+        return {
+            image: scrollImageRef.value,
+            container: slideContentRef.value,
+        };
+    }
+
+    return {
+        image: scrollImageMobileRef.value,
+        container: slideContentMobileRef.value,
+    };
+};
+
+const getMaxScrollTranslateY = (target) => {
+    const { image, container } = getScrollElements(target);
+
+    if (!image || !container) {
+        return 0;
+    }
+
+    const overflow = Math.max(image.offsetHeight - container.offsetHeight, 0);
+    return -overflow;
+};
+
+const setScrollTranslateY = (target, element, nextY) => {
+    scrollAnimationState[target].currentY = nextY;
+
+    if (element) {
+        element.style.transform = `translateY(${nextY}px)`;
+    }
+};
+
+const getDistanceRatioForTimelineProgress = (timelineProgress) => {
+    const clampedProgress = clamp(timelineProgress, 0, 1);
+
+    for (let index = 1; index < REALISTIC_SCROLL_STOPS.length; index += 1) {
+        const previousStop = REALISTIC_SCROLL_STOPS[index - 1];
+        const nextStop = REALISTIC_SCROLL_STOPS[index];
+
+        if (clampedProgress > nextStop.time) {
+            continue;
+        }
+
+        const segmentDuration = nextStop.time - previousStop.time;
+        if (segmentDuration <= 0) {
+            return nextStop.position;
+        }
+
+        const segmentProgress = (clampedProgress - previousStop.time) / segmentDuration;
+        const easedSegmentProgress = getSegmentEasedProgress(nextStop.easing, segmentProgress);
+        return previousStop.position + (nextStop.position - previousStop.position) * easedSegmentProgress;
+    }
+
+    return 1;
+};
+
+const getTimelineProgressForDistanceRatio = (distanceRatio) => {
+    const clampedRatio = clamp(distanceRatio, 0, 1);
+
+    for (let index = 1; index < REALISTIC_SCROLL_STOPS.length; index += 1) {
+        const previousStop = REALISTIC_SCROLL_STOPS[index - 1];
+        const nextStop = REALISTIC_SCROLL_STOPS[index];
+
+        if (clampedRatio > nextStop.position) {
+            continue;
+        }
+
+        const segmentDistance = nextStop.position - previousStop.position;
+        if (segmentDistance <= 0) {
+            return nextStop.time;
+        }
+
+        const segmentProgress = (clampedRatio - previousStop.position) / segmentDistance;
+        const rawSegmentProgress = getSegmentRawProgress(nextStop.easing, segmentProgress);
+        return previousStop.time + (nextStop.time - previousStop.time) * rawSegmentProgress;
+    }
+
+    return 1;
+};
+
+const stopScrollAnimation = (target) => {
+    const frameId = scrollAnimationState[target].frameId;
+
+    if (frameId !== null) {
+        cancelAnimationFrame(frameId);
+    }
+
+    scrollAnimationState[target].frameId = null;
+};
+
+const animateScrollImage = ({ element, target, startY, endY, duration, easing }) => {
+    if (!element) {
+        return;
+    }
+
+    stopScrollAnimation(target);
+
+    if (Math.abs(endY - startY) < 0.5) {
+        setScrollTranslateY(target, element, endY);
+        return;
+    }
+
+    const startTime = performance.now();
+
+    const animate = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easedProgress = easing(progress);
+        const nextY = startY + (endY - startY) * easedProgress;
+
+        setScrollTranslateY(target, element, nextY);
+
+        if (progress < 1) {
+            scrollAnimationState[target].frameId = requestAnimationFrame(animate);
+            return;
+        }
+
+        setScrollTranslateY(target, element, endY);
+        scrollAnimationState[target].frameId = null;
+    };
+
+    scrollAnimationState[target].frameId = requestAnimationFrame(animate);
+};
+
+const animateImageBackToStart = (element, target, startY) => {
+    animateScrollImage({
+        element,
+        target,
+        startY,
+        endY: 0,
+        duration: SCROLL_RESET_DURATION_MS,
+        easing: (progress) => 1 - Math.pow(1 - progress, 3),
+    });
+};
+
+const animateImageOnHover = (element, target, startY) => {
+    const maxTranslateY = getMaxScrollTranslateY(target);
+
+    if (Math.abs(maxTranslateY) < 0.5) {
+        setScrollTranslateY(target, element, 0);
+        return;
+    }
+
+    const startDistanceRatio = clamp(startY / maxTranslateY, 0, 1);
+    const startTimelineProgress = getTimelineProgressForDistanceRatio(startDistanceRatio);
+    const remainingDuration = Math.max(HOVER_SCROLL_DURATION_MS * (1 - startTimelineProgress), 120);
+
+    stopScrollAnimation(target);
+
+    const startTime = performance.now();
+
+    const animate = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / remainingDuration, 1);
+        const timelineProgress = startTimelineProgress + (1 - startTimelineProgress) * progress;
+        const distanceRatio = getDistanceRatioForTimelineProgress(timelineProgress);
+        const nextY = maxTranslateY * distanceRatio;
+
+        setScrollTranslateY(target, element, nextY);
+
+        if (progress < 1) {
+            scrollAnimationState[target].frameId = requestAnimationFrame(animate);
+            return;
+        }
+
+        scrollAnimationState[target].frameId = null;
+    };
+
+    scrollAnimationState[target].frameId = requestAnimationFrame(animate);
+};
+
+const stopHoverScrollAndReturn = (target) => {
+    const isDesktop = target === 'desktop';
+    const hoveredState = isDesktop ? isSliderHovered : isMobileHovered;
+    const element = isDesktop ? scrollImageRef.value : scrollImageMobileRef.value;
+
+    if (!hoveredState.value) {
+        return;
+    }
+
+    if (!element) {
+        hoveredState.value = false;
+        stopScrollAnimation(target);
+        return;
+    }
+
+    const currentY = scrollAnimationState[target].currentY;
+    hoveredState.value = false;
+    animateImageBackToStart(element, target, currentY);
+};
+
+const startHoverScroll = (target) => {
+    const isDesktop = target === 'desktop';
+    const hoveredState = isDesktop ? isSliderHovered : isMobileHovered;
+    const element = isDesktop ? scrollImageRef.value : scrollImageMobileRef.value;
+
+    if (!element) {
+        hoveredState.value = true;
+        return;
+    }
+
+    const currentY = scrollAnimationState[target].currentY;
+    hoveredState.value = true;
+
+    animateImageOnHover(element, target, currentY);
+};
 
 const applyCurrentSlide = (index) => {
     const nextSlide = getSlideData(index);
@@ -626,6 +873,11 @@ const runSlideTransition = async (targetIndex, direction) => {
         return;
     }
 
+    stopScrollAnimation('desktop');
+    stopScrollAnimation('mobile');
+    isSliderHovered.value = false;
+    isMobileHovered.value = false;
+
     isTransitioning.value = true;
     transitionDirection.value = direction;
 
@@ -637,10 +889,10 @@ const runSlideTransition = async (targetIndex, direction) => {
 
     // Сбрасываем анимацию скролла перед выездом
     if (scrollImageRef.value) {
-        scrollImageRef.value.style.transform = 'translateY(0)';
+        setScrollTranslateY('desktop', scrollImageRef.value, 0);
     }
     if (scrollImageMobileRef.value) {
-        scrollImageMobileRef.value.style.transform = 'translateY(0)';
+        setScrollTranslateY('mobile', scrollImageMobileRef.value, 0);
     }
 
     const desktopOutClass = direction === 'next' ? 'transitioning-out-next' : 'transitioning-out-prev';
@@ -769,137 +1021,29 @@ onUnmounted(() => {
 });
 
 const handleSliderMouseEnter = () => {
-    isSliderHovered.value = true;
+    startHoverScroll('desktop');
 
     // Останавливаем анимацию мобильного элемента
     if (isMobileHovered.value) {
-        isMobileHovered.value = false;
-
-        if (scrollImageMobileRef.value) {
-            const element = scrollImageMobileRef.value;
-            const currentY = getTranslateY(element);
-            const duration = 1000;
-            const startTime = Date.now();
-
-            const animate = () => {
-                const elapsed = Date.now() - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-
-                const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-                const newY = currentY + (0 - currentY) * easeProgress;
-                element.style.transform = `translateY(${newY}px)`;
-
-                if (progress < 1) {
-                    requestAnimationFrame(animate);
-                } else {
-                    element.style.transform = 'translateY(0)';
-                }
-            };
-
-            requestAnimationFrame(animate);
-        }
+        stopHoverScrollAndReturn('mobile');
     }
 };
 
 const handleSliderMouseLeave = () => {
-    isSliderHovered.value = false;
-
-    // Плавно возвращаем изображение в исходное положение
-    if (scrollImageRef.value) {
-        const element = scrollImageRef.value;
-
-        // Получаем текущее значение translateY
-        const currentY = getTranslateY(element);
-        const duration = 1000;
-        const startTime = Date.now();
-
-        const animate = () => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-
-            // Используем ease-out кривую
-            const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-            const newY = currentY + (0 - currentY) * easeProgress;
-            element.style.transform = `translateY(${newY}px)`;
-
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            } else {
-                element.style.transform = 'translateY(0)';
-            }
-        };
-
-        requestAnimationFrame(animate);
-    }
+    stopHoverScrollAndReturn('desktop');
 };
 
 const handleMobileMouseEnter = () => {
-    isMobileHovered.value = true;
+    startHoverScroll('mobile');
 
     // Останавливаем анимацию десктопного элемента
     if (isSliderHovered.value) {
-        isSliderHovered.value = false;
-
-        if (scrollImageRef.value) {
-            const element = scrollImageRef.value;
-            const currentY = getTranslateY(element);
-            const duration = 1000;
-            const startTime = Date.now();
-
-            const animate = () => {
-                const elapsed = Date.now() - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-
-                const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-                const newY = currentY + (0 - currentY) * easeProgress;
-                element.style.transform = `translateY(${newY}px)`;
-
-                if (progress < 1) {
-                    requestAnimationFrame(animate);
-                } else {
-                    element.style.transform = 'translateY(0)';
-                }
-            };
-
-            requestAnimationFrame(animate);
-        }
+        stopHoverScrollAndReturn('desktop');
     }
 };
 
 const handleMobileMouseLeave = () => {
-    isMobileHovered.value = false;
-
-    // Плавно возвращаем изображение в исходное положение
-    if (scrollImageMobileRef.value) {
-        const element = scrollImageMobileRef.value;
-
-        // Получаем текущее значение translateY
-        const currentY = getTranslateY(element);
-        const duration = 1000;
-        const startTime = Date.now();
-
-        const animate = () => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-
-            // Используем ease-out кривую
-            const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-            const newY = currentY + (0 - currentY) * easeProgress;
-            element.style.transform = `translateY(${newY}px)`;
-
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            } else {
-                element.style.transform = 'translateY(0)';
-            }
-        };
-
-        requestAnimationFrame(animate);
-    }
+    stopHoverScrollAndReturn('mobile');
 };
 </script>
 
@@ -939,7 +1083,7 @@ const handleMobileMouseLeave = () => {
                         Помогаем клиентам выйти в интернет: сайт, дизайн, реклама — легко и эффективно.
                     </p>
                 </div>
-                    <div class="relative slider group mt-[120px]" :class="{ 'is-hovered': isSliderHovered }" :style="{ '--scroll-offset': scrollOffset + '%' }">
+                    <div class="relative slider group mt-[120px]" :class="{ 'is-hovered': isSliderHovered }">
                         <div ref="desktopContainerRef" class="desktop relative" @mouseenter="handleSliderMouseEnter" @mouseleave="handleSliderMouseLeave">
                             <div ref="slideContentRef" class="slide-content max-w-[864px] h-[542px] overflow-hidden absolute top-[37px] left-[124px]">
                                 <Link :href="currentSlideLink" class="slide"><img ref="scrollImageRef" :src="currentDesktopImage" alt="" class="scroll-image" @load="calculateScrollOffset"></Link>
@@ -951,7 +1095,7 @@ const handleMobileMouseLeave = () => {
 
                             </Link>
                         </div>
-                        <div ref="mobileContainerRef" class="mobile cursor-pointer absolute top-[133px] right-14 max-w-[308px] w-full h-[620px] flex items-center justify-center" :class="{ 'is-hovered': isMobileHovered }" :style="{ '--scroll-offset-mobile': scrollOffsetMobile + '%' }" @mouseenter="handleMobileMouseEnter" @mouseleave="handleMobileMouseLeave">
+                        <div ref="mobileContainerRef" class="mobile cursor-pointer absolute top-[133px] right-14 max-w-[308px] w-full h-[620px] flex items-center justify-center" :class="{ 'is-hovered': isMobileHovered }" @mouseenter="handleMobileMouseEnter" @mouseleave="handleMobileMouseLeave">
                             <div ref="slideContentMobileRef" class="slide-content--mobile overflow-hidden absolute top-[1px] w-[91%] h-[99%] rounded-[50px]">
                                 <Link :href="currentSlideLink" class="slide-mobile"><img ref="scrollImageMobileRef" :src="currentMobileImage" alt="" class="scroll-image-mobile" @load="calculateScrollOffsetMobile"></Link>
                             </div>
@@ -3241,24 +3385,8 @@ const handleMobileMouseLeave = () => {
     will-change: transform;
 }
 
-.slider.group:not(.is-hovered) .scroll-image {
-    animation: none !important;
-}
-
-.slider.group.is-hovered .scroll-image {
-    animation: realisticScroll 11s infinite;
-}
-
 .scroll-image-mobile {
     will-change: transform;
-}
-
-.mobile:not(.is-hovered) .scroll-image-mobile {
-    animation: none !important;
-}
-
-.mobile.is-hovered .scroll-image-mobile {
-    animation: realisticScrollMobile 11s infinite;
 }
 
 .arrows {
@@ -3391,130 +3519,6 @@ const handleMobileMouseLeave = () => {
     }
     100% {
         transform: rotate(360deg);
-    }
-}
-
-@keyframes realisticScroll {
-    0% {
-        transform: translateY(0);
-        animation-timing-function: cubic-bezier(0.45, 0.05, 0.55, 0.95);
-    }
-    3% {
-        transform: translateY(calc(var(--scroll-offset) * -0.02));
-    }
-    10% {
-        transform: translateY(calc(var(--scroll-offset) * -0.08));
-    }
-    12% {
-        transform: translateY(calc(var(--scroll-offset) * -0.10));
-    }
-    15% {
-        transform: translateY(calc(var(--scroll-offset) * -0.11));
-    }
-    21% {
-        transform: translateY(calc(var(--scroll-offset) * -0.20));
-    }
-    28% {
-        transform: translateY(calc(var(--scroll-offset) * -0.32));
-    }
-    31% {
-        transform: translateY(calc(var(--scroll-offset) * -0.35));
-    }
-    34% {
-        transform: translateY(calc(var(--scroll-offset) * -0.37));
-    }
-    37% {
-        transform: translateY(calc(var(--scroll-offset) * -0.40));
-    }
-    41% {
-        transform: translateY(calc(var(--scroll-offset) * -0.45));
-    }
-    49% {
-        transform: translateY(calc(var(--scroll-offset) * -0.60));
-        animation-timing-function: linear;
-    }
-    54% {
-        transform: translateY(calc(var(--scroll-offset) * -0.72));
-    }
-    58% {
-        transform: translateY(calc(var(--scroll-offset) * -0.80));
-    }
-    60% {
-        transform: translateY(calc(var(--scroll-offset) * -0.85));
-    }
-    64% {
-        transform: translateY(calc(var(--scroll-offset) * -0.92));
-    }
-    90% {
-        transform: translateY(calc(var(--scroll-offset) * -1));
-        animation-timing-function: ease-in;
-    }
-    /* Быстрый возврат за 1 секунду с ускорением в начале и конце */
-    100% {
-        transform: translateY(0);
-        animation-timing-function: ease-out;
-    }
-}
-
-@keyframes realisticScrollMobile {
-    0% {
-        transform: translateY(0);
-        animation-timing-function: cubic-bezier(0.45, 0.05, 0.55, 0.95);
-    }
-    3% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.02));
-    }
-    10% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.08));
-    }
-    12% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.10));
-    }
-    15% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.11));
-    }
-    21% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.20));
-    }
-    28% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.32));
-    }
-    31% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.35));
-    }
-    34% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.37));
-    }
-    37% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.40));
-    }
-    41% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.45));
-    }
-    49% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.60));
-        animation-timing-function: linear;
-    }
-    54% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.72));
-    }
-    58% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.80));
-    }
-    60% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.85));
-    }
-    64% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -0.92));
-    }
-    90% {
-        transform: translateY(calc(var(--scroll-offset-mobile) * -1));
-        animation-timing-function: ease-in;
-    }
-    /* Быстрый возврат за 1 секунду с ускорением в начале и конце */
-    100% {
-        transform: translateY(0);
-        animation-timing-function: ease-out;
     }
 }
 
