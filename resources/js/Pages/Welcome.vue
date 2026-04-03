@@ -25,12 +25,20 @@ const isPreloadLagging = ref(false);
 
 const desktopContainerRef = ref(null);
 const mobileContainerRef = ref(null);
-const isStartActionActive = ref(false);
+const isAnimActive = ref(false);
+const isAnimOriginVisible = ref(false);
+const isAnimOriginRingVisible = ref(false);
+const isAnimOriginOuterRingVisible = ref(false);
+const isAnimClosing = ref(false);
 
 const TRANSITION_MS = 600;
 const PRELOAD_MAX_WAIT_MS = 350;
 const HOVER_SCROLL_DURATION_MS = 11000;
 const SCROLL_RESET_DURATION_MS = 1000;
+const ANIM_STAGE_ONE_MS = 200;
+const ANIM_STAGE_TWO_MS = 100;
+const ANIM_CLOSE_STAGE_ONE_MS = 100;
+const ANIM_CLOSE_STAGE_TWO_MS = 200;
 const REALISTIC_SCROLL_STOPS = [
     { time: 0, position: 0 },
     { time: 0.05, position: 0, easing: 'hold' },
@@ -181,8 +189,103 @@ const handleResize = () => {
     calculateScrollOffsetMobile();
 };
 
+let animStageOneTimer = null;
+let animCloseTimer = null;
+let animStageTwoTimer = null;
+let animCloseStageOneTimer = null;
+let animCloseStageTwoTimer = null;
+
+const clearAnimStageOneTimer = () => {
+    if (animStageOneTimer) {
+        clearTimeout(animStageOneTimer);
+        animStageOneTimer = null;
+    }
+};
+
+const clearAnimCloseTimer = () => {
+    if (animCloseTimer) {
+        clearTimeout(animCloseTimer);
+        animCloseTimer = null;
+    }
+};
+
+const clearAnimCloseStageOneTimer = () => {
+    if (animCloseStageOneTimer) {
+        clearTimeout(animCloseStageOneTimer);
+        animCloseStageOneTimer = null;
+    }
+};
+
+const clearAnimCloseStageTwoTimer = () => {
+    if (animCloseStageTwoTimer) {
+        clearTimeout(animCloseStageTwoTimer);
+        animCloseStageTwoTimer = null;
+    }
+};
+
+const clearAnimStageTwoTimer = () => {
+    if (animStageTwoTimer) {
+        clearTimeout(animStageTwoTimer);
+        animStageTwoTimer = null;
+    }
+};
+
 const handleStartActionClick = () => {
-    isStartActionActive.value = !isStartActionActive.value;
+    clearAnimStageOneTimer();
+    clearAnimCloseTimer();
+    clearAnimStageTwoTimer();
+    clearAnimCloseStageOneTimer();
+    clearAnimCloseStageTwoTimer();
+
+    if (isAnimActive.value) {
+        isAnimClosing.value = true;
+        isAnimOriginOuterRingVisible.value = false;
+
+        animCloseStageOneTimer = setTimeout(() => {
+            if (isAnimActive.value && isAnimClosing.value) {
+                isAnimOriginRingVisible.value = false;
+
+                animCloseStageTwoTimer = setTimeout(() => {
+                    if (isAnimActive.value && isAnimClosing.value) {
+                        isAnimOriginVisible.value = false;
+
+                        animCloseTimer = setTimeout(() => {
+                            isAnimActive.value = false;
+                            isAnimClosing.value = false;
+                            animCloseTimer = null;
+                        }, ANIM_CLOSE_STAGE_TWO_MS);
+                    }
+
+                    animCloseStageTwoTimer = null;
+                }, ANIM_STAGE_TWO_MS);
+            }
+
+            animCloseStageOneTimer = null;
+        }, ANIM_CLOSE_STAGE_ONE_MS);
+
+        return;
+    }
+
+    isAnimClosing.value = false;
+    isAnimActive.value = true;
+    isAnimOriginRingVisible.value = false;
+    isAnimOriginOuterRingVisible.value = false;
+    isAnimOriginVisible.value = false;
+
+    animStageOneTimer = setTimeout(() => {
+        if (isAnimActive.value && !isAnimClosing.value) {
+            isAnimOriginVisible.value = true;
+
+            animStageTwoTimer = setTimeout(() => {
+                if (isAnimActive.value && !isAnimClosing.value && isAnimOriginVisible.value) {
+                    isAnimOriginRingVisible.value = true;
+                    isAnimOriginOuterRingVisible.value = true;
+                }
+                animStageTwoTimer = null;
+            }, ANIM_STAGE_TWO_MS);
+        }
+        animStageOneTimer = null;
+    }, ANIM_STAGE_ONE_MS);
 };
 
 // tabs state
@@ -839,6 +942,11 @@ const handleMobileMouseLeave = () => {
 };
 
 onUnmounted(() => {
+    clearAnimStageOneTimer();
+    clearAnimCloseTimer();
+    clearAnimStageTwoTimer();
+    clearAnimCloseStageOneTimer();
+    clearAnimCloseStageTwoTimer();
     window.removeEventListener('resize', handleResize);
 });
 </script>
@@ -1102,13 +1210,16 @@ onUnmounted(() => {
                         <svg class="start-border start-border--inner" viewBox="0 0 380 380" aria-hidden="true">
                             <circle cx="190" cy="190" r="189.5" />
                         </svg>
-                        <div class="road-line" :class="{ 'road-line--expanded': isStartActionActive }">
+                        <div class="start-origin-ring start-origin-ring--outer" :class="{ 'start-origin-ring--visible': isAnimOriginOuterRingVisible }" aria-hidden="true"></div>
+                        <div class="start-origin-ring" :class="{ 'start-origin-ring--visible': isAnimOriginRingVisible }" aria-hidden="true"></div>
+                        <div class="start-origin-circle" :class="{ 'start-origin-circle--visible': isAnimOriginVisible }" aria-hidden="true"></div>
+                        <div class="road-line" :class="{ 'road-line--expanded': isAnimActive }">
                             <button type="button" class="road-line-action road-line-action--start flex items-center" @click="handleStartActionClick">
                                 <span class="road-line-action-label text-[32px] items-center relative h-9 inline-flex font-semibold">Старт</span>
-                                <span class="road-line-cap road-line-cap--start" aria-hidden="true"></span>
+                                <span class="road-line-cap road-line-cap--start" :class="{ 'road-line-cap--anim-active': isAnimActive }" aria-hidden="true"></span>
                             </button>
                             <span class="road-line-cap road-line-cap--end" aria-hidden="true"></span>
-                            <div class="road-line-label road-line-label--finish cursor-pointer text-[32px] items-center relative h-9 inline-flex">Финиш</div>
+                            <div class="road-line-label road-line-label--finish cursor-pointer text-[32px] items-center relative h-9 inline-flex font-semibold">Финиш</div>
                         </div>
                     </div>
                 </div>
@@ -1148,6 +1259,50 @@ onUnmounted(() => {
 .start > * {
 
     z-index: 1;
+}
+
+.start-origin-ring {
+    position: absolute;
+    top: 50%;
+    left: 1px;
+    width: 136px;
+    height: 136px;
+    border: 2px solid #333333;
+    border-radius: 9999px;
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.start-origin-ring--outer {
+    width: 162px;
+    height: 162px;
+    border-width: 1px;
+}
+
+.start-origin-ring--visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.start-origin-circle {
+    position: absolute;
+    top: 50%;
+    left: -40px;
+    width: 82px;
+    height: 82px;
+    border-radius: 9999px;
+    background: #333333;
+    transform: translateY(-50%) scale(0.82);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.start-origin-circle--visible {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
 }
 
 .road-line {
@@ -1235,6 +1390,7 @@ onUnmounted(() => {
 }
 
 .road-line-cap {
+    display: block;
     width: 10px;
     height: 10px;
     border-radius: 9999px;
@@ -1249,12 +1405,20 @@ onUnmounted(() => {
     right: 0;
     transform: translateY(-50%);
     animation: startCapPulse 2.4s ease-in-out infinite;
+    transform-origin: center center;
+    will-change: transform;
     z-index: 1;
+}
+
+.road-line-cap--start.road-line-cap--anim-active {
+    animation: none;
+    transform: translateY(-50%) scale(1);
 }
 
 .road-line-cap--start::before,
 .road-line-cap--start::after {
     content: '';
+    display: block;
     position: absolute;
     left: 50%;
     top: 50%;
@@ -1263,6 +1427,8 @@ onUnmounted(() => {
     border: 1px solid rgba(51, 51, 51, 0.7);
     border-radius: 9999px;
     transform: translate(-50%, -50%) scale(1);
+    transform-origin: center center;
+    will-change: transform, opacity;
     opacity: 0;
 }
 
@@ -1272,6 +1438,12 @@ onUnmounted(() => {
 
 .road-line-cap--start::after {
     animation: startCapWave 2.4s ease-out infinite 0.8s;
+}
+
+.road-line-cap--start.road-line-cap--anim-active::before,
+.road-line-cap--start.road-line-cap--anim-active::after {
+    animation: none;
+    opacity: 0;
 }
 
 .road-line-cap--end {
