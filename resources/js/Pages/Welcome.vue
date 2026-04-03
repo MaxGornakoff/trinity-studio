@@ -215,10 +215,13 @@ const handleProjectCardEnter = (event) => {
     const cardElement = event.currentTarget;
     updateProjectCardPreviewShift(cardElement);
     cardElement.classList.add('is-hovered');
+    showProjectCursor.value = true;
+    updateProjectCursorPosition(event);
 };
 
 const handleProjectCardLeave = (event) => {
     event.currentTarget.classList.remove('is-hovered');
+    showProjectCursor.value = false;
 };
 
 const handleProjectCardImageLoad = (event) => {
@@ -228,6 +231,29 @@ const handleProjectCardImageLoad = (event) => {
     }
 
     updateProjectCardPreviewShift(cardElement);
+};
+
+const projectsContainerRef = ref(null);
+const projectCursorX = ref(0);
+const projectCursorY = ref(0);
+const showProjectCursor = ref(false);
+
+const updateProjectCursorPosition = (event) => {
+    if (!projectsContainerRef.value) {
+        return;
+    }
+
+    const rect = projectsContainerRef.value.getBoundingClientRect();
+    projectCursorX.value = event.clientX - rect.left;
+    projectCursorY.value = event.clientY - rect.top;
+};
+
+const handleProjectCardMove = (event) => {
+    updateProjectCursorPosition(event);
+};
+
+const handleProjectsGridLeave = () => {
+    showProjectCursor.value = false;
 };
 
 const mapProjectsByLand = computed(() =>
@@ -1067,7 +1093,7 @@ const handleMobileMouseLeave = () => {
                     <a href="#contacts" class="rounded-full bg-[#333333] flex items-center font-normal pl-[25px] pr-[15px] py-[6px] text-[16px] text-white hover:bg-gray-700 gap-3">
                         <span class="block">Контакт</span>
                         <span class="icon w-[9px] h-[10px] block  min-w-[14px]">
-                            <svg class="h-full w-full block"><use xlink:href="/images/sprite.svg#arrow"></use></svg>
+                            <svg class="h-full w-full block fill-white"><use xlink:href="/images/sprite.svg#arrow"></use></svg>
                         </span>
                     </a>
 
@@ -1166,18 +1192,23 @@ const handleMobileMouseLeave = () => {
                                 left: spotlightX + 'px',
                                 top: spotlightY + 'px'
                             }"
-                        ></div>
+                        >
+                            <span class="services-spotlight-icon" aria-hidden="true">
+                                <svg class="h-full w-full block fill-[#000000]"><use xlink:href="/images/sprite.svg#arrow"></use></svg>
+                            </span>
+                        </div>
                     </transition>
 
 
                     <div
                         v-for="service in services"
                         :key="service.title"
-                        class="service-card rounded-lg bg-[#262626] p-[30px] text-white flex flex-col justify-between basis-[calc(33%-17px)] min-h-[212px] transition-opacity duration-200"
-                        :class="{ 'opacity-50': hoveredService && hoveredService !== service.title }"
+                        class="service-card rounded-lg p-[30px] text-white flex flex-col justify-between basis-[calc(33%-17px)] min-h-[212px] transition-opacity duration-200"
+                        :class="{ 'opacity-50': hoveredService && hoveredService !== service.title, 'is-hovered': hoveredService === service.title }"
                         @mouseenter="hoveredService = service.title"
                         @mouseleave="hoveredService = null"
                     >
+                        <div class="service-card-surface"></div>
                         <h3 class="text-lg font-semibold leading-tight sm:text-[24px]">{{ service.title }}</h3>
                         <p class="text-[12px] font-[400] leading-relaxed text-white sm:text-[16px]">{{ service.text }}</p>
                     </div>
@@ -3020,12 +3051,28 @@ const handleMobileMouseLeave = () => {
                         Европа
                     </button>
                 </div>
-                <div class="grid gap-x-6 gap-y-8 md:grid-cols-2 project-cards">
+                <div ref="projectsContainerRef" class="grid gap-x-6 gap-y-8 md:grid-cols-2 project-cards" @mouseleave="handleProjectsGridLeave">
+                    <transition name="project-cursor">
+                        <div
+                            v-if="showProjectCursor"
+                            class="project-cursor"
+                            :style="{
+                                left: projectCursorX + 'px',
+                                top: projectCursorY + 'px'
+                            }"
+                            aria-hidden="true"
+                        >
+                            <span class="project-cursor-icon">
+                                <svg class="h-full w-full block fill-[#000000]"><use xlink:href="/images/sprite.svg#arrow"></use></svg>
+                            </span>
+                        </div>
+                    </transition>
                     <article
                         v-for="project in filteredProjectsCards"
                         :key="project.id"
                         class="project-card rounded-xl"
                         @mouseenter="handleProjectCardEnter"
+                        @mousemove="handleProjectCardMove"
                         @mouseleave="handleProjectCardLeave"
                     >
                         <Link :href="route('portfolio.show', project.slug)" class="project-card-link block">
@@ -3364,6 +3411,54 @@ const handleMobileMouseLeave = () => {
     transform: translate3d(0, var(--card-preview-shift), 0) scale(1.5);
 }
 
+.project-cards,
+.project-cards .project-card,
+.project-cards .project-card * {
+    cursor: none !important;
+}
+
+.project-cards {
+    position: relative;
+}
+
+.project-cursor {
+    position: absolute;
+    width: 54px;
+    height: 54px;
+    border-radius: 9999px;
+    background: rgba(229, 231, 235, 0.95);
+    box-shadow: 0 12px 30px rgba(17, 24, 39, 0.16);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    z-index: 40;
+}
+
+.project-cursor-icon {
+    display: block;
+    width: 12px;
+    height: 13px;
+}
+
+.project-cursor-enter-active,
+.project-cursor-leave-active {
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.project-cursor-enter-from,
+.project-cursor-leave-to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.72);
+}
+
+.project-cursor-enter-to,
+.project-cursor-leave-from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
 .country-switcher-button {
     border: 0;
     padding: 0;
@@ -3551,6 +3646,15 @@ const handleMobileMouseLeave = () => {
     transform: translate(-50%, -50%);
     z-index: 20; /* below text z-index 30 */
     transition: width 0.2s ease, height 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.services-spotlight-icon {
+    display: block;
+    width: 12px;
+    height: 13px;
 
 }
 
@@ -3579,6 +3683,24 @@ const handleMobileMouseLeave = () => {
     position: relative;
 }
 
+.service-card-surface {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: #262626;
+    z-index: 1;
+    pointer-events: none;
+    transform-origin: center center;
+    transform-style: preserve-3d;
+    transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.service-card.is-hovered .service-card-surface {
+    z-index: 15;
+    transform: perspective(1600px) rotateX(7deg) rotateY(-10deg) scale(1.04);
+    box-shadow: 0 30px 80px rgba(17, 24, 39, 0.18);
+}
+
 
 .service-card h3,
 .service-card p {
@@ -3586,6 +3708,15 @@ const handleMobileMouseLeave = () => {
     mix-blend-mode: difference;
     position: relative;
     z-index: 30;
-    transition: color 0.2s ease;
+    transform: translate3d(0, 0, 0);
+    transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1), color 0.35s ease;
+}
+
+.service-card.is-hovered h3 {
+    transform: translate3d(8px, -2px, 32px);
+}
+
+.service-card.is-hovered p {
+    transform: translate3d(8px, 0, 24px);
 }
 </style>
