@@ -2,9 +2,12 @@
 
 use App\Http\Controllers\Admin\MapPopupLocationController;
 use App\Http\Controllers\Admin\PortfolioProjectController;
+use App\Http\Controllers\Admin\InteractionMenuItemController;
 use App\Http\Controllers\PortfolioController;
+use App\Models\InteractionMenuItem;
 use App\Models\MapPopupLocation;
 use App\Models\PortfolioProject;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -27,7 +30,7 @@ Route::get('/', function () {
             ->orderBy('order_column')
             ->limit(6)
             ->get();
-        
+
         $sliderProjects = PortfolioProject::query()
             ->where('is_published', true)
             ->where('show_in_slider', true)
@@ -59,12 +62,27 @@ Route::get('/', function () {
         $mapPopupLocations = [];
     }
 
+    try {
+        $interactionMenuItems = Schema::hasTable('interaction_menu_items')
+            ? InteractionMenuItem::query()
+                ->whereNull('parent_id')
+                ->where('is_active', true)
+                ->orderBy('order_column')
+                ->orderBy('id')
+                ->get(['id', 'title', 'slug'])
+                ->values()
+            : [];
+    } catch (\Throwable $exception) {
+        $interactionMenuItems = [];
+    }
+
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'featuredProjects' => $featuredProjects,
         'sliderProjects' => $sliderProjects,
         'mapProjects' => $mapProjects,
         'mapPopupLocations' => $mapPopupLocations,
+        'interactionMenuItems' => $interactionMenuItems,
     ]);
 })->name('home');
 
@@ -91,6 +109,7 @@ Route::get('/dashboard', function () {
 
 Route::middleware(['auth', 'admin.email'])->prefix('admin')->name('admin.')->group(function () {
     Route::resource('portfolio-projects', PortfolioProjectController::class)->except(['show']);
+    Route::resource('interaction-menu-items', InteractionMenuItemController::class)->except(['show']);
     Route::get('map-popup-locations', [MapPopupLocationController::class, 'edit'])->name('map-popup-locations.edit');
     Route::put('map-popup-locations', [MapPopupLocationController::class, 'update'])->name('map-popup-locations.update');
 });

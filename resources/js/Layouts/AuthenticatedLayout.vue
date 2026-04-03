@@ -39,6 +39,12 @@ const showingNavigationDropdown = ref(false);
                                     Portfolio
                                 </NavLink>
                                 <NavLink
+                                    :href="route('admin.interaction-menu-items.index')"
+                                    :active="route().current('admin.interaction-menu-items.*')"
+                                >
+                                    Меню
+                                </NavLink>
+                                <NavLink
                                     :href="route('admin.map-popup-locations.edit')"
                                     :active="route().current('admin.map-popup-locations.*')"
                                 >
@@ -131,6 +137,12 @@ const showingNavigationDropdown = ref(false);
                             :active="route().current('admin.portfolio-projects.*')"
                         >
                             Portfolio
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('admin.interaction-menu-items.index')"
+                            :active="route().current('admin.interaction-menu-items.*')"
+                        >
+                            Меню
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             :href="route('admin.map-popup-locations.edit')"

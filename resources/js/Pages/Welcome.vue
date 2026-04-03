@@ -116,6 +116,10 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    interactionMenuItems: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const activeCountry = ref('world');
@@ -188,6 +192,14 @@ const handleResize = () => {
     calculateScrollOffset();
     calculateScrollOffsetMobile();
 };
+
+const getInteractionMenuItemStyle = (index, total) => ({
+    '--interaction-angle': `${-90 + (360 / total) * index}deg`,
+    '--interaction-index': `${index}`,
+    '--interaction-count': `${total}`,
+});
+
+const topLevelInteractionMenuItems = computed(() => props.interactionMenuItems ?? []);
 
 let animStageOneTimer = null;
 let animCloseTimer = null;
@@ -1210,6 +1222,9 @@ onUnmounted(() => {
                         <svg class="start-border start-border--inner" viewBox="0 0 380 380" aria-hidden="true">
                             <circle cx="190" cy="190" r="189.5" />
                         </svg>
+                        <svg class="start-origin-dot-ring" :class="{ 'start-origin-dot-ring--visible': isAnimOriginOuterRingVisible }" viewBox="0 0 292 292" aria-hidden="true">
+                            <circle cx="146" cy="146" r="145.5" />
+                        </svg>
                         <div class="start-origin-ring start-origin-ring--outer" :class="{ 'start-origin-ring--visible': isAnimOriginOuterRingVisible }" aria-hidden="true"></div>
                         <div class="start-origin-ring" :class="{ 'start-origin-ring--visible': isAnimOriginRingVisible }" aria-hidden="true"></div>
                         <div class="start-origin-circle" :class="{ 'start-origin-circle--visible': isAnimOriginVisible }" aria-hidden="true"></div>
@@ -1220,6 +1235,17 @@ onUnmounted(() => {
                             </button>
                             <span class="road-line-cap road-line-cap--end" aria-hidden="true"></span>
                             <div class="road-line-label road-line-label--finish cursor-pointer text-[32px] items-center relative h-9 inline-flex font-semibold">Финиш</div>
+                        </div>
+                        <div class="interaction-menu" :class="{ 'interaction-menu--visible': isAnimOriginOuterRingVisible }">
+                            <button
+                                v-for="(item, index) in topLevelInteractionMenuItems"
+                                :key="item.id ?? item.slug ?? item.title"
+                                type="button"
+                                class="interaction-menu-item"
+                                :style="getInteractionMenuItemStyle(index, topLevelInteractionMenuItems.length)"
+                            >
+                                <span class="interaction-menu-item-label">{{ item.title }}</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1275,6 +1301,106 @@ onUnmounted(() => {
     transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
+.start-origin-dot-ring {
+    position: absolute;
+    top: 50%;
+    left: 1px;
+    width: 292px;
+    height: 292px;
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.start-origin-dot-ring circle {
+    fill: none;
+    stroke: #333333;
+    stroke-width: 1;
+    stroke-linecap: round;
+    stroke-dasharray: 0 5;
+}
+
+.start-origin-dot-ring--visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.interaction-menu {
+    position: absolute;
+    top: 50%;
+    left: 1px;
+    width: 0;
+    height: 0;
+    z-index: 5;
+    overflow: visible;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
+.interaction-menu--visible {
+    pointer-events: auto;
+}
+
+.interaction-menu-item {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0;
+    transform:
+        rotate(var(--interaction-angle))
+        translateX(148px)
+        rotate(calc(var(--interaction-angle) * -1))
+        translate(-50%, -50%)
+        scale(0.72);
+    transition: opacity 0.2s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: calc((var(--interaction-count) - var(--interaction-index) - 1) * 40ms);
+}
+
+.interaction-menu--visible .interaction-menu-item {
+    opacity: 1;
+    transform:
+        rotate(var(--interaction-angle))
+        translateX(148px)
+        rotate(calc(var(--interaction-angle) * -1))
+        translate(-50%, -50%)
+        scale(1);
+    transition-delay: calc(40ms + var(--interaction-index) * 75ms);
+}
+
+.interaction-menu-item-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 116px;
+    min-height: 36px;
+    padding: 4px 18px;
+    border-radius: 9999px;
+    background: #333333;
+    backdrop-filter: blur(10px);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1;
+    color: #ffffff;
+    white-space: nowrap;
+    transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.interaction-menu-item:hover .interaction-menu-item-label {
+    transform: translateY(-2px);
+
+}
+
 .start-origin-ring--outer {
     width: 162px;
     height: 162px;
@@ -1315,7 +1441,7 @@ onUnmounted(() => {
 }
 
 .road-line--expanded {
-    left: -134px;
+    left: -170px;
 }
 
 .road-line::before {
